@@ -1,15 +1,15 @@
 import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-
 export default async function handler(req, res) {
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+    return res.status(405).json({ error: "Método não permitido" });
   }
 
-  try {
-    const { priceId, userId } = req.body;
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+  const { priceId } = req.body;
+
+  try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
@@ -19,16 +19,13 @@ export default async function handler(req, res) {
           quantity: 1,
         },
       ],
-      metadata: {
-        userId: userId,
-      },
-      success_url: "https://SEU-APP.vercel.app/sucesso.html",
-      cancel_url: "https://SEU-APP.vercel.app/cancelado.html",
+      success_url: `${req.headers.origin}/?success=true`,
+      cancel_url: `${req.headers.origin}/?canceled=true`,
     });
 
     return res.status(200).json({ url: session.url });
-  } catch (err) {
-    console.error(err);
-    return res.status(400).json({ error: "Erro ao criar checkout" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Erro ao criar o checkout" });
   }
 }
