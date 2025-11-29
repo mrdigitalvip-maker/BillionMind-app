@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha Primeira Página com Tailwind</title>
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Fonte -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+
+    <!-- STRIPE (EDITÁVEL) -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        window.stripe = Stripe("SUA_CHAVE_PUBLICAVEL_AQUI"); 
+        window.price_pro = "price_1SYaniARia0ROQXBL4xAFQBo"; 
+        window.price_vip = "price_1SYaspARia0ROQXBunnpCkml";
+    </script>
+</head>
+
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
+
+    <!-- CONTAINER -->
+    <div class="w-full max-w-lg bg-white shadow-2xl rounded-xl p-8 space-y-6 border border-gray-100">
+
+        <!-- Cabeçalho -->
+        <header class="text-center">
+            <h1 class="text-4xl font-extrabold text-blue-700 mb-2">Olá e Bem-vindo(a)!</h1>
+            <p class="text-gray-500 text-lg">Este é o seu modelo HTML completo, pronto para ser copiado.</p>
+        </header>
+
+        <!-- Conteúdo -->
+        <section class="space-y-4">
+            <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+                <h2 class="text-xl font-semibold">1. Design Responsivo</h2>
+                <p class="text-gray-600 mt-1">Layout adaptado para todos os dispositivos.</p>
+            </div>
+
+            <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+                <h2 class="text-xl font-semibold">2. Estilização Rápida</h2>
+                <p class="text-gray-600 mt-1">Estilos feitos direto no HTML.</p>
+            </div>
+
+            <div class="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
+                <h2 class="text-xl font-semibold">3. Conteúdo Simples</h2>
+                <p class="text-gray-600 mt-1">Use como base para o seu projeto!</p>
+            </div>
+        </section>
+
+        <!-- ASSINATURAS (NOVO) -->
+        <div class="space-y-4 pt-6 border-t border-gray-200">
+            <h2 class="text-center text-2xl font-bold text-blue-700">Assinaturas</h2>
+
+            <!-- Botão PRO -->
+            <button id="btn-pro"
+                class="w-full py-3 bg-purple-600 text-white font-bold rounded-lg shadow-md hover:bg-purple-700 transition">
+                Assinar PRO – R$ 29,98/mês
+            </button>
+
+            <!-- Botão VIP -->
+            <button id="btn-vip"
+                class="w-full py-3 bg-yellow-500 text-black font-bold rounded-lg shadow-md hover:bg-yellow-600 transition flex items-center justify-center space-x-2">
+                <span>ASSINAR VIP – R$ 39,98/mês</span>
+            </button>
+        </div>
+
+        <!-- Botão -->
+        <footer class="pt-4 border-t border-gray-100 text-center">
+            <button class="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+                Comece a Editar!
+            </button>
+        </footer>
+    </div>
+
+    <!-- SCRIPT DO STRIPE PARA CHECKOUT -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+
+            const stripe = window.stripe;
+
+            const btnPro = document.getElementById("btn-pro");
+            const btnVip = document.getElementById("btn-vip");
+
+            if (btnPro) {
+                btnPro.addEventListener("click", async () => {
+                    const session = await fetch("/api/checkout_pro", {
+                        method: "POST",
+                    }).then(res => res.json());
+
+                    await stripe.redirectToCheckout({ sessionId: session.id });
+                });
+            }
+
+            if (btnVip) {
+                btnVip.addEventListener("click", async () => {
+                    const session = await fetch("/api/checkout_vip", {
+                        method: "POST",
+                    }).then(res => res.json());
+
+                    await stripe.redirectToCheckout({ sessionId: session.id });
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>
