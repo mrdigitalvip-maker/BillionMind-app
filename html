@@ -6,137 +6,14 @@
     <title>BillionMind - Rumo ao Primeiro Milhão</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- Firebase Imports -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, query, setDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Variáveis globais fornecidas pelo ambiente (obrigatórias)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-billionmind-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        setLogLevel('debug'); // Ativar logs de debug para o Firestore
-
-        let app;
-        let db;
-        let auth;
-        let userId = null;
-
-        window.firebaseInit = async () => {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase config is missing. Cannot initialize Firestore.");
-                    // Fallback to local storage or mock data if necessary, but we'll proceed assuming auth state is handled later.
-                    return;
-                }
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                // Expose globally for JS logic
-                window.db = db;
-                window.auth = auth;
-
-                await new Promise(resolve => {
-                    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-                        if (user) {
-                            userId = user.uid;
-                        } else {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                                userId = auth.currentUser?.uid || crypto.randomUUID();
-                            } else {
-                                await signInAnonymously(auth);
-                                userId = auth.currentUser?.uid || crypto.randomUUID();
-                            }
-                        }
-                        window.userId = userId;
-                        window.appId = appId;
-                        unsubscribe();
-                        resolve();
-                    });
-                });
-                
-                // document.getElementById('user-id-display').textContent = `ID do Elite: ${userId}`; // ID REMOVIDO (ITEM 1)
-                console.log("Firebase initialized and user authenticated:", userId);
-                
-                // Start data listeners after auth
-                window.setupFirestoreListeners();
-
-            } catch (error) {
-                console.error("Erro na inicialização do Firebase ou autenticação:", error);
-                // document.getElementById('user-id-display').textContent = `ID do Elite: Falha (${error.message})`; // ID REMOVIDO (ITEM 1)
-                // Fallback userId if auth fails
-                window.userId = crypto.randomUUID();
-                window.setupFirestoreListeners(); // Attempt to setup listeners anyway, they might fail due to security rules
-            }
-        };
-
-        window.db = null;
-        window.auth = null;
-
-        // Função para configurar os listeners do Firestore
-        window.setupFirestoreListeners = () => {
-            if (!window.db || !window.userId) {
-                console.warn("Firestore not ready. Skipping listeners setup.");
-                return;
-            }
-
-            // Path: /artifacts/{appId}/users/{userId}/habits
-            const userHabitsRef = collection(window.db, `artifacts/${window.appId}/users/${window.userId}/habits`);
-
-            onSnapshot(userHabitsRef, (snapshot) => {
-                const habits = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                window.renderHabits(habits);
-            }, (error) => {
-                console.error("Erro ao ouvir hábitos:", error);
-            });
-            
-            // Path para dados gerais do usuário (XP, Energy)
-            const userDataRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/profile/status`);
-            onSnapshot(userDataRef, (docSnap) => {
-                const data = docSnap.exists() ? docSnap.data() : { xp: 0, energy: 100, isVip: false, tier: 'BASIC', quote: "A disciplina é a ponte entre metas e a realidade do seu milhão." };
-                window.renderProfile(data);
-            }, (error) => {
-                console.error("Erro ao ouvir dados do perfil:", error);
-            });
-        };
-
-        window.saveHabit = async (habit) => {
-            if (!window.db || !window.userId) {
-                console.error("Firestore não está pronto para salvar.");
-                return;
-            }
-            try {
-                const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/habits`, habit.id || crypto.randomUUID());
-                await setDoc(docRef, habit, { merge: true });
-                console.log("Hábito salvo/atualizado com sucesso.");
-            } catch (e) {
-                console.error("Erro ao salvar o hábito:", e);
-            }
-        };
-        
-        window.updateProfile = async (updates) => {
-            if (!window.db || !window.userId) {
-                console.error("Firestore não está pronto para atualizar o perfil.");
-                return;
-            }
-            try {
-                const docRef = doc(window.db, `artifacts/${window.appId}/users/${window.userId}/profile/status`);
-                await updateDoc(docRef, updates);
-                console.log("Perfil atualizado com sucesso.");
-            } catch (e) {
-                console.error("Erro ao atualizar o perfil:", e);
-            }
-        };
-
-        // Initialize Firebase on load
-        window.addEventListener('load', window.firebaseInit);
+    <!-- Stripe -->
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        window.stripe = Stripe(pk_live_51SUcWyARia0ROQXBNtGEA1oNXFLA5I1Gt6J7btUDyYSpz0wLbh22kB1YxpYIY7UKX9ASRm0QYON8Q5wVt7HZoHlt00RKl52oLS); 
+        window.price_pro = "price_1SYaniARia0ROQXBL4xAFQBo"; 
+        window.price_vip = "price_1SYaspARia0ROQXBunnpCkml";
     </script>
-</head>
 <body class="bg-black text-white min-h-screen antialiased flex flex-col items-center">
 
     <!-- Configuração Customizada do Tailwind CSS para Cores Premium/Luxo -->
@@ -164,71 +41,29 @@
         }
     </script>
 
-    <!-- Estilos Customizados Glassmorphism e Neon -->
+    <!-- Estilos Customizados -->
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        
         body {
-            /* Fundo escuro com gradiente sutil para profundidade premium */
             background: radial-gradient(circle at center, #111 0%, #000 100%);
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
         }
-
         .glass-card {
             background-color: var(--tw-color-glass-bg);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), var(--tw-box-shadow-inner-glass);
-            border-radius: 1rem; /* Arredondamento padrão */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3), var(--tw-box-shadow-inner-glass);
+            border-radius: 1rem;
         }
-        
-        /* Efeito para ícones neon */
-        .neon-icon {
-            text-shadow: 0 0 5px var(--tw-color-neon-purple), 0 0 10px var(--tw-color-neon-purple);
-            transition: all 0.2s ease-in-out;
-        }
-
-        .gold-glow {
-            text-shadow: 0 0 5px var(--tw-color-gold), 0 0 15px rgba(242, 201, 76, 0.4);
-        }
-
-        .btn-premium {
-            background: linear-gradient(135deg, #F2C94C 0%, #D4A940 100%);
-            color: #111;
-            font-weight: 700;
-            transition: transform 0.1s, box-shadow 0.1s;
-            box-shadow: 0 4px 15px rgba(242, 201, 76, 0.4);
-        }
-
-        .btn-premium:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(242, 201, 76, 0.6);
-        }
-        
-        .active-nav-icon {
-            color: var(--tw-color-gold);
-            text-shadow: 0 0 5px var(--tw-color-gold);
-        }
-        
-        /* Para o indicador de progresso Gold */
-        .progress-bar-gold::-webkit-progress-value {
-            background-color: #F2C94C;
-        }
-        .progress-bar-gold::-moz-progress-bar {
-            background-color: #F2C94C;
-        }
-        
     </style>
 
-    <!-- Estrutura Principal do Aplicativo -->
+    <!-- INÍCIO DO APP -->
     <div id="app" class="relative w-full max-w-md mx-auto min-h-screen flex flex-col pb-24">
-        
-        <!-- Cabeçalho Fixo (Apenas para o Badge VIP) -->
+
+        <!-- Cabeçalho -->
         <header class="sticky top-0 z-10 w-full pt-6 px-4 bg-black/80 backdrop-blur-sm">
             <div class="relative w-full flex flex-col items-end justify-center pb-2">
-                
-                <!-- Badge (Mantido à direita) -->
                 <button id="vip-badge" class="flex items-center space-x-2 p-2 rounded-full glass-card border-gold/50 cursor-pointer hover:shadow-neon-gold text-sm transition" onclick="showVipModal()">
                     <span class="gold-glow text-gold font-bold">VIP</span>
                     <i class="ph-fill ph-crown text-gold gold-glow text-xl"></i>
@@ -236,99 +71,80 @@
             </div>
         </header>
 
-        <!-- Conteúdo das Abas (Ocultar/Mostrar via JS) -->
-        <main class="flex-grow p-4 space-y-6 overflow-y-auto">
-
-            <!-- Tab 1: HOJE (Padrão) -->
+        <!-- Conteúdo -->
+        <main class="flex-grow p-4 space-y-6 overflow-y-auto">             <!-- Tab 1: HOJE -->
             <section id="tab-hoje" class="tab-content active space-y-6">
-                
-                <!-- Título e Subtítulo (MOVIMENTOS PARA AQUI - SÓ APARECE NESSA TELA) -->
+
+                <!-- Título BILLIONMIND já centralizado -->
                 <div class="w-full flex flex-col items-center justify-center pt-2 pb-4">
-                    <h1 id="main-title" class="text-4xl sm:text-5xl font-extrabold tracking-wider" style="
-                        /* Estilo Dourado Premium usando gradiente e text-shadow */
-                        background: linear-gradient(90deg, #FFD700, #F0E68C, #FFD700);
-                        -webkit-background-clip: text;
-                        -webkit-text-fill-color: transparent;
-                        text-shadow: 0 0 8px rgba(242, 201, 76, 0.5);
-                        font-size: clamp(2.5rem, 10vw, 3.5rem);
-                    ">
+                    <h1 id="main-title" class="text-4xl sm:text-5xl font-extrabold tracking-wider"
+                        style="background: linear-gradient(90deg,#FFD700,#F0E68C,#FFD700);
+                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                        text-shadow:0 0 8px rgba(242,201,76,.5); font-size:clamp(2.5rem,10vw,3.5rem);">
                         BILLIONMIND
                     </h1>
-                    
+
                     <p class="text-xs sm:text-sm text-gray-400 mt-1 font-light italic text-center">
                         Sua rotina. Seu poder. Seu futuro milionário.
                     </p>
                 </div>
-                
-                <!-- 6. Carrossel de Depoimentos (Placeholder) -->
-                <div id="testimonial-carousel" class="relative w-full h-24 overflow-hidden flex items-center justify-center">
-                    <!-- Depoimentos serão injetados/movidos aqui pelo JS -->
-                </div>
-                
-                <!-- Barra de Status (XP, Energy) -->
-                <div id="profile-status" class="glass-card p-4 flex justify-between items-center text-sm font-semibold">
+
+                <!-- Carrossel -->
+                <div id="testimonial-carousel"
+                    class="relative w-full h-24 overflow-hidden flex items-center justify-center"></div>
+
+                <!-- Barra de status -->
+                <div id="profile-status"
+                    class="glass-card p-4 flex justify-between items-center text-sm font-semibold">
                     <div class="flex items-center space-x-2">
                         <i class="ph-bold ph-lightning text-neon-purple neon-icon text-xl"></i>
-                        <span class="text-gray-300">Nível XP: <span id="xp-display" class="text-white font-extrabold">0</span></span>
+                        <span class="text-gray-300">Nível XP: 
+                            <span id="xp-display" class="text-white font-extrabold">0</span>
+                        </span>
                     </div>
                     <div class="flex items-center space-x-2">
                         <i class="ph-bold ph-fire text-gold gold-glow text-xl"></i>
-                        <span class="text-gray-300">Disciplina: <span id="energy-display" class="text-white font-extrabold">100%</span></span>
+                        <span class="text-gray-300">Disciplina: 
+                            <span id="energy-display" class="text-white font-extrabold">100%</span>
+                        </span>
                     </div>
                 </div>
 
-                <!-- Frase de Poder Diária -->
+                <!-- Frase do dia -->
                 <div class="glass-card p-5 border-neon-purple/50">
-                    <h2 class="text-xs uppercase text-neon-purple font-bold mb-2 tracking-widest">MENTALIDADE DE RIQUEZA</h2>
+                    <h2 class="text-xs uppercase text-neon-purple font-bold mb-2 tracking-widest">
+                        MENTALIDADE DE RIQUEZA
+                    </h2>
                     <p id="daily-quote" class="text-lg italic font-medium text-gray-200">
                         "A disciplina é a ponte entre metas e a realidade do seu milhão."
                     </p>
                 </div>
 
-                <!-- Rotinas de Elite (Hábitos) -->
+                <!-- Rotinas de Elite -->
                 <h2 class="text-xl font-bold text-white mb-4">Rotinas de Elite</h2>
+
                 <div id="habits-list" class="space-y-4">
-                    <!-- Cards de Hábitos serão injetados aqui -->
-                    <div class="glass-card p-4 flex justify-between items-center">
-                        <div class="flex items-center space-x-3">
-                            <i class="ph-bold ph-book-open text-neon-purple neon-icon text-2xl"></i>
-                            <div>
-                                <p class="font-bold text-lg text-gold">Leitura 5 AM</p>
-                                <p class="text-xs text-gray-400">0/30 min de Conhecimento Estratégico</p>
-                            </div>
-                        </div>
-                        <button class="w-8 h-8 rounded-full border-2 border-neon-purple text-neon-purple hover:bg-neon-purple hover:text-white transition" onclick="completeHabit('h1', this)">
-                            <i class="ph ph-check-fat text-lg"></i>
-                        </button>
-                    </div>
-                    <div class="glass-card p-4 flex justify-between items-center">
-                        <div class="flex items-center space-x-3">
-                            <i class="ph-bold ph-currency-circle-dollar text-gold gold-glow text-2xl"></i>
-                            <div>
-                                <p class="font-bold text-lg text-gold">Revisão Financeira</p>
-                                <p class="text-xs text-gray-400">Verificar 3 Ativos de Alto Rendimento</p>
-                            </div>
-                        </div>
-                        <button class="w-8 h-8 rounded-full border-2 border-neon-purple text-neon-purple hover:bg-neon-purple hover:text-white transition" onclick="completeHabit('h2', this)">
-                            <i class="ph ph-check-fat text-lg"></i>
-                        </button>
-                    </div>
+                    <!-- Itens são carregados automaticamente via JS -->
                 </div>
+
             </section>
 
             <!-- Tab 2: PLANEJAR -->
             <section id="tab-planejar" class="tab-content hidden space-y-6">
+
                 <h2 class="text-2xl font-extrabold text-gold gold-glow mb-6">Planejamento de Riqueza</h2>
 
-                <!-- Botão Criar Hábito (Usando IA) -->
-                <button class="w-full btn-premium p-4 rounded-xl flex items-center justify-center space-x-3" onclick="showAlphaAICreation('habit')">
+                <!-- Criar hábito via IA -->
+                <button class="w-full btn-premium p-4 rounded-xl flex items-center justify-center space-x-3"
+                        onclick="showAlphaAIModal('habit')">
                     <i class="ph-fill ph-sparkle text-xl"></i>
                     <span>CRIAR HÁBITO DE ELITE com AlphaAI</span>
                 </button>
 
-                <!-- Desafios de Alta Performance -->
+                <!-- Desafios -->
                 <div class="space-y-4">
                     <h3 class="text-xl font-bold text-white">Desafios de Milhões (VIP)</h3>
+
                     <div class="glass-card p-4 border-neon-purple/50">
                         <h4 class="font-bold text-lg text-gold">Desafio 7 Dias: Foco Implacável</h4>
                         <p class="text-xs text-gray-400 mb-2">Meta: 10 horas de foco profundo por dia.</p>
@@ -338,40 +154,9 @@
                         </div>
                         <progress class="w-full h-1 progress-bar-gold mt-1" value="57" max="100"></progress>
                     </div>
-                    
-                    <div class="glass-card p-4 border-neon-purple/50">
-                        <h4 class="font-bold text-lg text-gold">Aceleração de Ativos</h4>
-                        <p class="text-xs text-gray-400 mb-2">Meta: Identificar 3 novas fontes de renda em 30 dias.</p>
-                        <div class="flex justify-between items-center text-xs text-gray-300">
-                            <span>Progresso: 12%</span>
-                            <i class="ph-bold ph-chart-line text-neon-purple"></i>
-                        </div>
-                        <progress class="w-full h-1 progress-bar-gold mt-1" value="12" max="100"></progress>
-                    </div>
+
                 </div>
 
-                <!-- Lista de Categorias -->
-                <div class="space-y-4">
-                    <h3 class="text-xl font-bold text-white">Categorias Estratégicas</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="glass-card p-4 text-center border-neon-purple/50">
-                            <i class="ph-bold ph-brain text-neon-purple neon-icon text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">Mentalidade</p>
-                        </div>
-                        <div class="glass-card p-4 text-center border-neon-purple/50">
-                            <i class="ph-bold ph-money text-gold gold-glow text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">Finanças & Riqueza</p>
-                        </div>
-                        <div class="glass-card p-4 text-center border-neon-purple/50">
-                            <i class="ph-bold ph-running text-neon-purple neon-icon text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">Alta Performance</p>
-                        </div>
-                        <div class="glass-card p-4 text-center border-neon-purple/50">
-                            <i class="ph-bold ph-sun-dim text-neon-purple neon-icon text-3xl mb-2"></i>
-                            <p class="text-sm font-semibold">Recuperação de Elite</p>
-                        </div>
-                    </div>
-                </div>
             </section>
 
             <!-- Tab 3: AMIGOS -->
@@ -381,32 +166,15 @@
                 <div class="glass-card p-6 text-center border-gold/50">
                     <i class="ph-bold ph-users-three text-gold gold-glow text-5xl mb-3"></i>
                     <h3 class="text-xl font-bold text-white mb-2">Construa Seu Círculo de Elite</h3>
-                    <p class="text-gray-400 mb-4">Conecte-se com outros visionários no caminho para o primeiro milhão. Compartilhe estratégias e discipline-se em grupo.</p>
-                    
-                    <button class="w-full btn-premium p-3 rounded-lg flex items-center justify-center space-x-2" onclick="showVipModal()">
+                    <p class="text-gray-400 mb-4">
+                        Conecte-se com visionários no caminho do primeiro milhão.
+                    </p>
+
+                    <button class="w-full btn-premium p-3 rounded-lg flex items-center justify-center space-x-2"
+                            onclick="showVipModal()">
                         <i class="ph-fill ph-crown text-xl"></i>
                         <span>Adicionar VIPs ao seu Círculo</span>
                     </button>
-                </div>
-
-                <div class="space-y-4">
-                    <h3 class="text-xl font-bold text-white">Ranking de Disciplina</h3>
-                    <div class="glass-card p-4 flex justify-between items-center border-neon-purple/50">
-                        <div class="flex items-center space-x-3">
-                            <span class="text-xl font-extrabold text-gold">#1</span>
-                            <div class="w-8 h-8 bg-neon-purple rounded-full"></div>
-                            <p class="font-bold text-white">Visionário XP_Elite</p>
-                        </div>
-                        <span class="text-sm text-neon-purple font-semibold">950 XP</span>
-                    </div>
-                    <div class="glass-card p-4 flex justify-between items-center border-neon-purple/50">
-                        <div class="flex items-center space-x-3">
-                            <span class="text-xl font-extrabold text-white">#2</span>
-                            <div class="w-8 h-8 bg-gray-600 rounded-full"></div>
-                            <p class="font-bold text-white">Estrategista_77</p>
-                        </div>
-                        <span class="text-sm text-gray-400 font-semibold">780 XP</span>
-                    </div>
                 </div>
             </section>
 
@@ -414,654 +182,74 @@
             <section id="tab-menu" class="tab-content hidden space-y-6">
                 <h2 class="text-2xl font-extrabold text-gold gold-glow mb-6">Central de Comando</h2>
 
-                <!-- Chat com AlphaAI (Novo Recurso) -->
                 <div class="glass-card p-4 space-y-4 border-neon-purple/50">
                     <h3 class="text-xl font-bold text-neon-purple neon-icon flex items-center space-x-2">
                         <i class="ph-fill ph-sparkle text-2xl"></i>
                         <span>AlphaAI - Seu Coach Milionário</span>
                     </h3>
-                    <div id="ai-chat-window" class="h-64 overflow-y-auto bg-bg-dark rounded-lg p-3 space-y-3 text-sm">
-                        <!-- Mensagens da IA e do Usuário aqui -->
+
+                    <div id="ai-chat-window"
+                        class="h-64 overflow-y-auto bg-bg-dark rounded-lg p-3 space-y-3 text-sm">
                         <div class="text-gold font-bold">AlphaAI:</div>
-                        <p class="text-gray-300">Bem-vindo. Qual é o seu objetivo de riqueza hoje? Seja direto e implacável.</p>
+                        <p class="text-gray-300">
+                            Bem-vindo. Qual é o seu objetivo de riqueza hoje?
+                        </p>
                     </div>
+
                     <div class="flex space-x-2">
-                        <input id="ai-chat-input" type="text" placeholder="Pergunte sobre riqueza, rotina ou disciplina..." class="flex-grow p-2 rounded-lg bg-charcoal border border-neon-purple/50 focus:ring-1 focus:ring-neon-purple text-white placeholder-gray-500">
-                        <button id="ai-chat-send-btn" class="bg-neon-purple p-2 rounded-lg text-white font-bold hover:bg-neon-purple/80 transition" onclick="sendAlphaAIChat()">
+                        <input id="ai-chat-input" type="text"
+                            placeholder="Pergunte sobre riqueza, rotina ou disciplina..."
+                            class="flex-grow p-2 rounded-lg bg-charcoal border border-neon-purple/50 text-white">
+                        <button id="ai-chat-send-btn"
+                            class="bg-neon-purple p-2 rounded-lg text-white font-bold"
+                            onclick="sendAlphaAIChat()">
                             <i class="ph-bold ph-paper-plane-right text-lg"></i>
                         </button>
                     </div>
-                    <div id="ai-chat-loading" class="text-center text-neon-purple hidden">
-                        <i class="ph-bold ph-spinner-gap animate-spin"></i>
-                        <span> AlphaAI está formulando sua estratégia...</span>
-                    </div>
-                </div>
 
-                <!-- Lista de Itens do Menu -->
-                <div class="space-y-2">
-                    <a href="#" class="glass-card p-4 flex justify-between items-center hover:bg-glass-bg/80 transition">
-                        <div class="flex items-center space-x-4">
-                            <i class="ph-bold ph-crown text-gold gold-glow text-2xl"></i>
-                            <span class="font-semibold text-white">Conteúdo VIP & Exclusivo</span>
-                        </div>
-                        <i class="ph-bold ph-caret-right text-gray-400"></i>
-                    </a>
-                    <a href="#" class="glass-card p-4 flex justify-between items-center hover:bg-glass-bg/80 transition">
-                        <div class="flex items-center space-x-4">
-                            <i class="ph-bold ph-user-plus text-neon-purple neon-icon text-2xl"></i>
-                            <span class="font-semibold text-white">Convidar Elites</span>
-                        </div>
-                        <i class="ph-bold ph-caret-right text-gray-400"></i>
-                    </a>
-                    <a href="#" class="glass-card p-4 flex justify-between items-center hover:bg-glass-bg/80 transition">
-                        <div class="flex items-center space-x-4">
-                            <i class="ph-bold ph-bell-simple text-neon-purple neon-icon text-2xl"></i>
-                            <span class="font-semibold text-white">Lembretes de Disciplina</span>
-                        </div>
-                        <i class="ph-bold ph-caret-right text-gray-400"></i>
-                    </a>
-                    <a href="#" class="glass-card p-4 flex justify-between items-center hover:bg-glass-bg/80 transition">
-                        <div class="flex items-center space-x-4">
-                            <i class="ph-bold ph-gauge text-gold gold-glow text-2xl"></i>
-                            <span class="font-semibold text-white">Índice de Potencial Humano</span>
-                        </div>
-                        <i class="ph-bold ph-caret-right text-gray-400"></i>
-                    </a>
-                    <a href="#" class="glass-card p-4 flex justify-between items-center hover:bg-glass-bg/80 transition">
-                        <div class="flex items-center space-x-4">
-                            <i class="ph-bold ph-gear-six text-gray-400 text-2xl"></i>
-                            <span class="font-semibold text-white">Configurações Estratégicas</span>
-                        </div>
-                        <i class="ph-bold ph-caret-right text-gray-400"></i>
-                    </a>
                 </div>
             </section>
+<!-- SCRIPT FINAL DO STRIPE PARA CHECKOUT -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
 
-        </main>
-        
-        <!-- Navegação Inferior Fixa (Bottom Nav) -->
-        <nav class="fixed bottom-0 z-20 w-full max-w-md mx-auto h-20 glass-card rounded-t-3xl p-2 flex justify-around items-center border-t border-white/10">
-            <button class="nav-btn flex flex-col items-center justify-center p-2 active" data-tab="hoje" onclick="switchTab('hoje', this)">
-                <i class="ph-bold ph-calendar neon-icon text-2xl active-nav-icon"></i>
-                <span class="text-xs font-semibold text-gold mt-1">HOJE</span>
-            </button>
-            <button class="nav-btn flex flex-col items-center justify-center p-2" data-tab="planejar" onclick="switchTab('planejar', this)">
-                <i class="ph-bold ph-target neon-icon text-2xl text-gray-400"></i>
-                <span class="text-xs font-semibold text-gray-400 mt-1">PLANEJAR</span>
-            </button>
-            <button class="nav-btn flex flex-col items-center justify-center p-2" data-tab="amigos" onclick="switchTab('amigos', this)">
-                <i class="ph-bold ph-users neon-icon text-2xl text-gray-400"></i>
-                <span class="text-xs font-semibold text-gray-400 mt-1">AMIGOS</span>
-            </button>
-            <button class="nav-btn flex flex-col items-center justify-center p-2" data-tab="menu" onclick="switchTab('menu', this)">
-                <i class="ph-bold ph-list neon-icon text-2xl text-gray-400"></i>
-                <span class="text-xs font-semibold text-gray-400 mt-1">MENU</span>
-            </button>
-        </nav>
+    const stripe = window.stripe;
 
-        <!-- Modal VIP (Planos de Assinatura) -->
-        <div id="vip-modal" class="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-            <div class="glass-card w-full max-w-lg p-6 space-y-6 border-gold/50 overflow-y-auto max-h-[90vh]">
-                <div class="flex justify-between items-center">
-                    <h2 class="text-3xl font-extrabold text-gold gold-glow">STATUS: ELITE VIP</h2>
-                    <button class="text-gray-400 text-2xl hover:text-white transition" onclick="hideVipModal()">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
-                </div>
-                <p class="text-gray-300">Desbloqueie o potencial máximo da sua jornada para a riqueza e alta performance.</p>
+    // IDs dos planos
+    const PRICE_PRO = window.price_pro;
+    const PRICE_VIP = window.price_vip;
 
-                <!-- 5. Contador de Urgência Animado -->
-                <div id="urgency-counter" class="bg-gradient-to-r from-yellow-900/40 to-black p-3 rounded-xl shadow-lg border border-yellow-800/50 mb-6 w-full max-w-lg mx-auto">
-                    <p class="text-center text-sm font-semibold text-yellow-300 animate-pulse">
-                        <span class="inline-block w-2 h-2 mr-2 bg-green-400 rounded-full"></span>
-                        <span id="active-users-count" class="font-extrabold text-xl align-middle mr-1 transition-all duration-500 ease-in-out">23</span>
-                        pessoas estão ativando o BillionMind agora.
-                    </p>
-                </div>
+    // Botões
+    const btnPro = document.getElementById("btn-pro");
+    const btnVip = document.getElementById("btn-vip");
 
-                <!-- Plano Grátis (BASIC) -->
-                <div class="glass-card p-4 border-neon-purple/50 bg-bg-dark/50">
-                    <h3 class="text-xl font-bold text-white mb-1">Plano Grátis <span class="text-sm text-neon-purple">(Limitado)</span></h3>
-                    <p class="text-xs text-gray-400 mb-3">Acesso inicial para testar sua ambição.</p>
-                    <ul class="text-sm space-y-1 text-gray-300 list-disc pl-5">
-                        <li>Acesso limitado a hábitos e rotinas</li>
-                        <li>Conteúdo básico</li>
-                        <li>Chat IA limitado</li>
-                        <li>Rotinas simples</li>
-                    </ul>
-                    <!-- 4. Urgência para GRÁTIS -->
-                    <p class="text-xs text-yellow-400/80 mt-3 font-medium">Recursos limitados — ideal para começar hoje.</p>
-                    <button class="mt-4 w-full bg-gray-600 p-3 rounded-lg text-white font-semibold cursor-not-allowed">
-                        Plano Atual
-                    </button>
-                </div>
-                
-                <!-- Plano Pro -->
-                <div class="glass-card p-4 border-neon-purple/80 bg-neon-purple/20 shadow-neon-purple-soft">
-                    <h3 class="text-xl font-bold text-white mb-1">Plano Pro <span class="text-sm text-white">R$ 29,98/mês</span></h3>
-                    <p class="text-xs text-gray-200 mb-3">Otimização de desempenho intermediária.</p>
-                    <ul class="text-sm space-y-1 text-gray-100 list-disc pl-5">
-                        <li>Hábitos e Rotinas ilimitadas</li>
-                        <li>IA intermediária para criar rotinas e planos</li>
-                        <li>Conteúdo Pro e Dashboards</li>
-                        <li>Desafios avançados</li>
-                    </ul>
-                    <!-- 4. Urgência para PRO -->
-                    <p class="text-xs text-yellow-500/80 mt-3 font-medium">Mais vendido — desbloqueie a performance completa.</p>
-                    <button class="mt-4 w-full bg-neon-purple p-3 rounded-lg text-white font-semibold hover:bg-neon-purple/80 transition">
-                        Assinar Plano Pro
-                    </button>
-                </div>
+    if (btnPro) {
+        btnPro.addEventListener("click", async () => {
+            const session = await fetch("/api/checkout_pro", {
+                method: "POST",
+            }).then(res => res.json());
 
-                <!-- Plano VIP -->
-                <div class="glass-card p-4 border-gold/80 bg-gold/10 shadow-neon-gold">
-                    <h3 class="text-2xl font-extrabold text-gold mb-1">Plano VIP <span class="text-base text-gold">R$ 39,98/mês</span></h3>
-                    <p class="text-sm text-gold mb-3">O Caminho Mais Rápido para a Riqueza. **Recomendado**</p>
-                    <ul class="text-sm space-y-1 text-gray-100 list-disc pl-5">
-                        <li>Acesso Total (Rotinas de Elite)</li>
-                        <li>IA Avançada (Coach Milionário Automático)</li>
-                        <li>Painéis de Riqueza e Disciplina</li>
-                        <li>**AlphaAI** cria TUDO que você pedir</li>
-                        <li>Badge VIP Dourado (exclusivo)</li>
-                    </ul>
-                    <!-- 4. Urgência para VIP -->
-                    <p class="text-xs text-purple-400/80 mt-3 font-medium">Acesso total — vagas limitadas por período.</p>
-                    <button class="mt-4 w-full btn-premium p-3 rounded-lg flex items-center justify-center space-x-2">
-                        <i class="ph-fill ph-crown text-xl"></i>
-                        <span>ASSINAR PLANO VIP</span>
-                    </button>
-                </div>
-
-            </div>
-        </div>
-        
-        <!-- Modal de Criação da AlphaAI -->
-        <div id="alpha-ai-modal" class="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
-            <div class="glass-card w-full max-w-lg p-6 space-y-6 border-neon-purple/50">
-                <div class="flex justify-between items-center">
-                    <h2 id="ai-modal-title" class="text-2xl font-extrabold text-neon-purple neon-icon">Criar com AlphaAI</h2>
-                    <button class="text-gray-400 text-2xl hover:text-white transition" onclick="hideAlphaAIModal()">
-                        <i class="ph-bold ph-x"></i>
-                    </button>
-                </div>
-                <p id="ai-modal-description" class="text-gray-300">Descreva o hábito/rotina/desafio que você deseja criar. AlphaAI irá otimizar para alta performance.</p>
-
-                <input id="ai-creation-input" type="text" placeholder="Ex: Hábito de finanças para gerar 10k/mês em 6 meses..." class="w-full p-3 rounded-lg bg-charcoal border border-neon-purple/50 focus:ring-1 focus:ring-neon-purple text-white placeholder-gray-500">
-                
-                <div id="ai-creation-loading" class="text-center text-neon-purple hidden">
-                    <i class="ph-bold ph-spinner-gap animate-spin"></i>
-                    <span> AlphaAI está gerando seu ativo de disciplina...</span>
-                </div>
-                
-                <div id="ai-creation-result" class="bg-bg-dark rounded-lg p-3 text-sm hidden space-y-2">
-                    <div class="text-gold font-bold">AlphaAI Resposta:</div>
-                    <pre id="ai-creation-text" class="whitespace-pre-wrap text-gray-300"></pre>
-                </div>
-
-                <button class="mt-4 w-full bg-neon-purple p-3 rounded-lg text-white font-semibold hover:bg-neon-purple/80 transition" onclick="generateAlphaAIContent()">
-                    <i class="ph-fill ph-sparkle text-lg"></i>
-                    <span>Gerar com AlphaAI</span>
-                </button>
-                
-                <button id="ai-save-button" class="mt-2 w-full btn-premium p-3 rounded-lg hidden" onclick="saveGeneratedContent()">
-                    <i class="ph-bold ph-floppy-disk text-lg"></i>
-                    <span>Salvar Hábito Gerado</span>
-                </button>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- JavaScript para Lógica e AlphaAI (Gemini API) -->
-    <script>
-        // --- Variáveis de Estado (Iniciais/Mock) ---
-        let currentTab = 'hoje';
-        let profile = {
-            xp: 0,
-            energy: 100,
-            isVip: false, // Pode ser BASIC, PRO, VIP. Usaremos o 'tier' para o badge.
-            tier: 'BASIC', 
-            quote: "A disciplina é a ponte entre metas e a realidade do seu milhão."
-        };
-        let habitsData = [
-            { id: 'h1', title: 'Leitura 5 AM', description: '0/30 min de Conhecimento Estratégico', completed: false },
-            { id: 'h2', title: 'Revisão Financeira', description: 'Verificar 3 Ativos de Alto Rendimento', completed: false },
-        ];
-        
-        const mockTestimonials = [ // 6. Dados para Carrossel
-            { text: "Aumentei minha disciplina em 300% em 7 dias.", author: "Leandro V." },
-            { text: "Esse app mudou meu foco para sempre.", author: "Helena R." },
-            { text: "Meu planejamento financeiro nunca foi tão claro.", author: "Marcos D." },
-            { text: "O AlphaAI me dá tarefas perfeitas para meu objetivo diário.", author: "Lucas M." },
-            { text: "Estou no caminho para o meu primeiro milhão.", author: "Vitor S." },
-        ];
-        
-        let activeUsers = 23; // 5. Contador de Urgência Inicial
-        let currentTestimonialIndex = 0;
-        const carouselInterval = 4000; // 4 segundos
-
-        let aiCreationType = ''; // 'habit', 'routine', 'challenge', 'goal'
-        
-        // --- Funções de Renderização e Lógica do App ---
-        
-        // Renderiza os dados do perfil (XP, Energy)
-        window.renderProfile = (data) => {
-            profile = data;
-            document.getElementById('xp-display').textContent = profile.xp.toLocaleString();
-            document.getElementById('energy-display').textContent = `${profile.energy}%`;
-            document.getElementById('daily-quote').textContent = profile.quote;
-
-            const vipBadge = document.getElementById('vip-badge');
-            const tier = profile.tier || 'BASIC'; // Assume BASIC se não tiver tier
-
-            let badgeHtml = '';
-            let badgeClasses = 'flex items-center space-x-2 p-2 rounded-full glass-card text-sm transition';
-            
-            if (tier === 'VIP') {
-                badgeHtml = `<span class="gold-glow text-gold font-bold">VIP</span><i class="ph-fill ph-crown text-gold gold-glow text-xl"></i>`;
-                badgeClasses += ' border-gold/50 cursor-pointer hover:shadow-neon-gold';
-            } else if (tier === 'PRO') {
-                badgeHtml = `<span class="text-neon-purple font-bold">PRO</span><i class="ph-fill ph-crown text-neon-purple neon-icon text-xl"></i>`;
-                badgeClasses += ' border-neon-purple/50 cursor-pointer hover:shadow-neon-purple-soft';
-            } else { // BASIC
-                badgeHtml = `<span class="text-white font-bold">BASIC</span><i class="ph-fill ph-crown text-gray-400 text-xl"></i>`;
-                badgeClasses += ' border-gray-700 cursor-pointer hover:bg-gray-700/50';
-            }
-            
-            vipBadge.innerHTML = badgeHtml;
-            vipBadge.className = badgeClasses;
-        };
-
-        // Renderiza a lista de hábitos
-        window.renderHabits = (habits) => {
-            if (habits && habits.length > 0) {
-                habitsData = habits;
-            } else if (window.userId && window.db) {
-                // Se não há dados, salva os dados iniciais mockados
-                habitsData.forEach(h => window.saveHabit(h));
-            }
-            
-            const list = document.getElementById('habits-list');
-            list.innerHTML = habitsData.map(habit => `
-                <div id="habit-${habit.id}" class="glass-card p-4 flex justify-between items-center ${habit.completed ? 'opacity-50' : ''}">
-                    <div class="flex items-center space-x-3">
-                        <i class="ph-bold ${habit.title.includes('Leitura') ? 'ph-book-open text-neon-purple neon-icon' : 'ph-currency-circle-dollar text-gold gold-glow'} text-2xl"></i>
-                        <div>
-                            <p class="font-bold text-lg text-gold">${habit.title}</p>
-                            <p class="text-xs text-gray-400">${habit.description}</p>
-                        </div>
-                    </div>
-                    <button class="w-8 h-8 rounded-full border-2 ${habit.completed ? 'border-gold text-gold bg-gold/20' : 'border-neon-purple text-neon-purple'} hover:bg-neon-purple hover:text-white transition" 
-                            onclick="completeHabit('${habit.id}', this)" ${habit.completed ? 'disabled' : ''}>
-                        <i class="ph ph-check-fat text-lg"></i>
-                    </button>
-                </div>
-            `).join('');
-        };
-        
-        // Alterna entre as abas de navegação
-        const switchTab = (tabName, button) => {
-            currentTab = tabName;
-            
-            // Oculta todas as abas
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.add('hidden');
+            await stripe.redirectToCheckout({
+                sessionId: session.id
             });
-            
-            // Mostra a aba selecionada
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        });
+    }
 
-            // Atualiza o estilo dos botões de navegação
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                const icon = btn.querySelector('.neon-icon');
-                const span = btn.querySelector('span');
+    if (btnVip) {
+        btnVip.addEventListener("click", async () => {
+            const session = await fetch("/api/checkout_vip", {
+                method: "POST",
+            }).then(res => res.json());
 
-                icon.classList.remove('active-nav-icon', 'text-gold');
-                icon.classList.add('text-gray-400');
-                span.classList.remove('text-gold');
-                span.classList.add('text-gray-400');
-
-                if (btn.dataset.tab === tabName) {
-                    icon.classList.add('active-nav-icon', 'text-gold');
-                    icon.classList.remove('text-gray-400');
-                    span.classList.add('text-gold');
-                    span.classList.remove('text-gray-400');
-                }
+            await stripe.redirectToCheckout({
+                sessionId: session.id
             });
-            
-            // Rola para o topo do conteúdo
-            document.querySelector('main').scrollTo(0, 0);
-        };
-        
-        // Função para completar um hábito (simula atualização e ganho de XP)
-        const completeHabit = async (id, buttonElement) => {
-            const habitIndex = habitsData.findIndex(h => h.id === id);
-            if (habitIndex !== -1 && !habitsData[habitIndex].completed) {
-                habitsData[habitIndex].completed = true;
-                
-                // 1. Atualiza no Firestore
-                await window.saveHabit(habitsData[habitIndex]);
+        });
+    }
 
-                // 2. Atualiza o perfil (ganha XP)
-                const xpGained = 20;
-                const newXp = profile.xp + xpGained;
-                await window.updateProfile({ xp: newXp });
+});
+</script>
 
-                // 3. Atualiza visualmente
-                buttonElement.disabled = true;
-                buttonElement.classList.remove('border-neon-purple', 'text-neon-purple', 'hover:bg-neon-purple', 'hover:text-white');
-                buttonElement.classList.add('border-gold', 'text-gold', 'bg-gold/20');
-                document.getElementById(`habit-${id}`).classList.add('opacity-50');
-
-                console.log(`Hábito ${id} completado. Ganho de ${xpGained} XP.`);
-            }
-        };
-
-        // --- Lógica do Modal VIP ---
-        const showVipModal = () => document.getElementById('vip-modal').classList.remove('hidden');
-        const hideVipModal = () => document.getElementById('vip-modal').classList.add('hidden');
-
-        // --- Lógica do Modal AlphaAI (Criação de Conteúdo) ---
-        const showAlphaAIModal = (type) => {
-            aiCreationType = type;
-            const modal = document.getElementById('alpha-ai-modal');
-            const title = document.getElementById('ai-modal-title');
-            const description = document.getElementById('ai-modal-description');
-            
-            let typeName = '';
-            let placeholder = '';
-
-            switch(type) {
-                case 'habit':
-                    typeName = 'Hábito de Elite';
-                    placeholder = 'Ex: Hábito de finanças para gerar 10k/mês em 6 meses...';
-                    break;
-                case 'routine':
-                    typeName = 'Rotina de Alto Desempenho';
-                    placeholder = 'Ex: Rotina matinal para otimizar 3 horas de trabalho focado...';
-                    break;
-                case 'challenge':
-                    typeName = 'Desafio Pessoal';
-                    placeholder = 'Ex: Desafio de disciplina para não procrastinar tarefas urgentes por 30 dias...';
-                    break;
-                default:
-                    typeName = 'Criação com AlphaAI';
-                    placeholder = 'Descreva o que deseja criar...';
-            }
-            
-            title.textContent = `Criar ${typeName} com AlphaAI`;
-            description.textContent = `Descreva o ${typeName.toLowerCase()} que você deseja criar. AlphaAI irá otimizar para alta performance.`;
-            document.getElementById('ai-creation-input').placeholder = placeholder;
-            document.getElementById('ai-creation-result').classList.add('hidden');
-            document.getElementById('ai-save-button').classList.add('hidden');
-            document.getElementById('ai-creation-text').textContent = '';
-
-            modal.classList.remove('hidden');
-        };
-        const hideAlphaAIModal = () => document.getElementById('alpha-ai-modal').classList.add('hidden');
-        
-        // --- Funções da AlphaAI (Gemini API) ---
-
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
-        const API_URL_CREATION = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=`;
-        const API_KEY = ""; // Será preenchido pelo runtime do Canvas
-
-        // Função Genérica para fazer a chamada à API com backoff
-        async function fetchWithExponentialBackoff(apiUrl, payload, maxRetries = 5) {
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (response.ok) {
-                        return await response.json();
-                    } else if (response.status === 429 && attempt < maxRetries - 1) {
-                        const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        // Retry loop continues
-                    } else {
-                        throw new Error(`API returned status ${response.status}: ${response.statusText}`);
-                    }
-                } catch (error) {
-                    if (attempt === maxRetries - 1) {
-                        throw new Error(`Falha na comunicação com a API após ${maxRetries} tentativas: ${error.message}`);
-                    }
-                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    // Retry loop continues
-                }
-            }
-            throw new Error("Exceeded maximum retries for API call.");
-        }
-
-        // 1. AlphaAI Chat (Aba Menu)
-        async function sendAlphaAIChat() {
-            const input = document.getElementById('ai-chat-input');
-            const chatWindow = document.getElementById('ai-chat-window');
-            const loadingIndicator = document.getElementById('ai-chat-loading');
-            const userQuery = input.value.trim();
-
-            if (!userQuery) return;
-            
-            // Adiciona a mensagem do usuário
-            const userMsg = document.createElement('div');
-            userMsg.innerHTML = `<div class="text-white font-bold">Eu:</div><p class="text-gray-300">${userQuery}</p>`;
-            chatWindow.appendChild(userMsg);
-            chatWindow.scrollTop = chatWindow.scrollHeight;
-
-            input.value = '';
-            loadingIndicator.classList.remove('hidden');
-
-            const systemPrompt = "Você é o AlphaAI, um coach de mentalidade milionária e alta performance. Responda a todas as perguntas de forma concisa, motivacional, focada em disciplina, riqueza, sucesso financeiro, otimização de rotina e o caminho para o primeiro milhão. Use um tom de voz firme, direto e inspirador.";
-            
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                tools: [{ "google_search": {} }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            try {
-                const result = await fetchWithExponentialBackoff(API_URL + API_KEY, payload);
-                const candidate = result.candidates?.[0];
-                let aiResponseText = "AlphaAI falhou. Refaça a pergunta com clareza e ambição.";
-
-                if (candidate && candidate.content?.parts?.[0]?.text) {
-                    aiResponseText = candidate.content.parts[0].text;
-                }
-
-                // Adiciona a resposta da IA
-                const aiMsg = document.createElement('div');
-                aiMsg.innerHTML = `<div class="text-gold font-bold">AlphaAI:</div><p class="text-gray-300">${aiResponseText}</p>`;
-                chatWindow.appendChild(aiMsg);
-                
-            } catch (error) {
-                console.error(error);
-                const errorMsg = document.createElement('div');
-                errorMsg.innerHTML = `<div class="text-red-500 font-bold">AlphaAI ERRO:</div><p class="text-red-400">${error.message}</p>`;
-                chatWindow.appendChild(errorMsg);
-            } finally {
-                loadingIndicator.classList.add('hidden');
-                chatWindow.scrollTop = chatWindow.scrollHeight;
-            }
-        }
-        
-        // 2. AlphaAI Criação (Modal)
-        async function generateAlphaAIContent() {
-            const input = document.getElementById('ai-creation-input');
-            const loadingIndicator = document.getElementById('ai-creation-loading');
-            const resultDisplay = document.getElementById('ai-creation-result');
-            const resultText = document.getElementById('ai-creation-text');
-            const saveButton = document.getElementById('ai-save-button');
-            const userQuery = input.value.trim();
-
-            if (!userQuery) return;
-            
-            loadingIndicator.classList.remove('hidden');
-            resultDisplay.classList.add('hidden');
-            saveButton.classList.add('hidden');
-            
-            let promptBase = '';
-            let systemInstruction = "Você é um especialista em otimização de alta performance e riqueza. Seu único objetivo é gerar um item de disciplina (hábito, rotina, desafio ou meta) de forma concisa e estruturada em português. Mantenha o foco em mentalidade milionária e sucesso financeiro. Use o tom de um coach de elite.";
-
-            // Define o prompt com base no tipo de criação
-            switch(aiCreationType) {
-                case 'habit':
-                    promptBase = `Gere um hábito de elite de alto valor baseado na seguinte descrição do usuário: "${userQuery}". O formato deve ser um título conciso, uma descrição focada em métricas e um plano de ação simples (3 passos). Formato de saída: Título: [Título], Descrição: [Descrição], Ação 1: [Ação], Ação 2: [Ação], Ação 3: [Ação].`;
-                    break;
-                case 'routine':
-                    promptBase = `Crie uma rotina matinal de alta performance (Elite Routine) baseada na seguinte descrição do usuário: "${userQuery}". A rotina deve ter 5 passos, focada em energia e disciplina para o sucesso. Formato de saída: Título: [Título], Passos: [1. Ação, 2. Ação, 3. Ação, 4. Ação, 5. Ação].`;
-                    break;
-                case 'challenge':
-                    promptBase = `Crie um desafio pessoal de 30 dias focado em mentalidade de riqueza, baseado na seguinte descrição do usuário: "${userQuery}". O desafio deve ter 3 regras principais e 1 meta de resultado. Formato de saída: Título: [Título], Regra 1: [Regra], Regra 2: [Regra], Regra 3: [Regra], Meta: [Meta de Resultado].`;
-                    break;
-                default:
-                    promptBase = `Responda a esta solicitação de forma motivacional e estruturada, com foco em riqueza e disciplina: "${userQuery}".`;
-            }
-            
-            const payload = {
-                contents: [{ parts: [{ text: promptBase }] }],
-                systemInstruction: { parts: [{ text: systemInstruction }] },
-            };
-
-            try {
-                const result = await fetchWithExponentialBackoff(API_URL_CREATION + API_KEY, payload);
-                const candidate = result.candidates?.[0];
-                let aiResponseText = "AlphaAI falhou em estruturar seu plano. Tente novamente, Elitista.";
-
-                if (candidate && candidate.content?.parts?.[0]?.text) {
-                    aiResponseText = candidate.content.parts[0].text;
-                }
-                
-                resultText.textContent = aiResponseText;
-                resultDisplay.classList.remove('hidden');
-                
-                if (aiCreationType === 'habit') {
-                     saveButton.classList.remove('hidden');
-                }
-
-            } catch (error) {
-                console.error(error);
-                resultText.textContent = `ERRO: ${error.message}`;
-                resultDisplay.classList.remove('hidden');
-            } finally {
-                loadingIndicator.classList.add('hidden');
-            }
-        }
-        
-        // 3. Salvar conteúdo gerado pela IA (apenas se for Hábito)
-        function saveGeneratedContent() {
-            const generatedText = document.getElementById('ai-creation-text').textContent;
-            
-            if (aiCreationType !== 'habit' || !generatedText) {
-                console.error("Conteúdo inválido para salvar como hábito.");
-                return;
-            }
-            
-            try {
-                // Tenta extrair Título e Descrição da resposta da IA
-                const titleMatch = generatedText.match(/Título:\s*(.*)/i);
-                const descriptionMatch = generatedText.match(/Descrição:\s*(.*)/i);
-
-                const newHabit = {
-                    id: crypto.randomUUID(),
-                    title: titleMatch ? titleMatch[1].trim() : 'Hábito AlphaAI (Título Não Encontrado)',
-                    description: descriptionMatch ? descriptionMatch[1].trim() : 'Hábito gerado pela IA, pronto para dominar.',
-                    completed: false
-                };
-
-                // Salva no Firestore
-                window.saveHabit(newHabit).then(() => {
-                    // Substituir alert() por um feedback na interface
-                    console.log('Hábito de Elite salvo com sucesso! Confira na aba HOJE.'); 
-                    hideAlphaAIModal();
-                    switchTab('hoje', document.querySelector('.nav-btn[data-tab="hoje"]'));
-                });
-
-            } catch (e) {
-                // Substituir alert() por um feedback na interface
-                console.error("Erro ao processar e salvar o hábito:", e);
-                // Você pode adicionar um elemento de feedback de erro aqui se desejar
-            }
-        }
-        
-        // --- FUNÇÕES DE NOVOS RECURSOS ---
-        
-        // 6. Lógica do Carrossel de Depoimentos
-        function renderTestimonialCards() {
-            const container = document.getElementById('testimonial-carousel');
-            if (!container) return;
-            
-            // Adiciona a classe 'relative' para o container e garante o alinhamento
-            container.classList.add('relative', 'h-24', 'flex', 'items-center', 'justify-center');
-
-            container.innerHTML = mockTestimonials.map((t, index) => `
-                <div data-index="${index}" class="testimonial-card absolute w-11/12 p-4 rounded-xl shadow-2xl glass-card text-center transition-opacity duration-1000 ease-in-out" 
-                     style="opacity: ${index === currentTestimonialIndex ? 1 : 0}; pointer-events: ${index === currentTestimonialIndex ? 'auto' : 'none'};">
-                    <p class="text-sm italic text-gray-100">
-                        "${t.text}"
-                    </p>
-                    <p class="mt-2 text-xs font-semibold text-gold">
-                        — ${t.author}
-                    </p>
-                </div>
-            `).join('');
-        }
-
-        function updateCarousel() {
-            const cards = document.querySelectorAll('#testimonial-carousel .testimonial-card');
-            if (cards.length === 0) return;
-
-            currentTestimonialIndex = (currentTestimonialIndex + 1) % mockTestimonials.length;
-            
-            cards.forEach((card, index) => {
-                if (index === currentTestimonialIndex) {
-                    card.style.opacity = '1';
-                    card.style.pointerEvents = 'auto';
-                } else {
-                    card.style.opacity = '0';
-                    card.style.pointerEvents = 'none';
-                }
-            });
-        }
-
-        function startTestimonialCarousel() {
-            renderTestimonialCards();
-            // Inicia a transição automática a cada 4 segundos
-            setInterval(updateCarousel, carouselInterval);
-        }
-
-        // 5. Lógica do Contador de Urgência
-        function updateUrgencyCounter() {
-            const countElement = document.getElementById('active-users-count');
-            if (!countElement) return;
-
-            // Altera o número entre 18 e 25 para simular atividade (escassez)
-            const newCount = Math.floor(Math.random() * (25 - 18 + 1)) + 18;
-            activeUsers = newCount;
-            countElement.textContent = activeUsers;
-        }
-
-        function startUrgencyCounter() {
-            // Atualiza o contador a cada 5 segundos
-            setInterval(updateUrgencyCounter, 5000);
-        }
-
-        // Inicia a aplicação na aba 'hoje'
-        window.onload = () => {
-             // Inicia o app na aba "HOJE"
-            switchTab('hoje', document.querySelector('.nav-btn[data-tab="hoje"]'));
-            
-            // Renderiza o estado inicial (será atualizado pelo onSnapshot)
-            window.renderProfile(profile);
-            window.renderHabits(habitsData);
-            
-            // Inicia os novos recursos
-            startTestimonialCarousel();
-            startUrgencyCounter();
-        };
-    </script>
 </body>
 </html>
+
