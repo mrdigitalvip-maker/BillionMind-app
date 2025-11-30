@@ -1,926 +1,921 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BillionMind - Seu Futuro Milionário</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Importação de Ícones (Phosphor Icons - solicitado pelo usuário) -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
-    <!-- Fonte Inter do Google (padrão Tailwind, mas garantida) -->
+  <meta charset="UTF-8" />
+  <title>Painel de Ganhos – App Investimentos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg-main: #02040a;
+      --bg-grad: radial-gradient(circle at top, #1b2440 0, #050611 45%, #02040a 100%);
+      --card: #080a16;
+      --card-soft: #101322;
+      --border-soft: rgba(255, 255, 255, 0.05);
+      --gold: #f4c86c;
+      --gold-soft: rgba(244, 200, 108, 0.18);
+      --accent: #34d399;
+      --accent-soft: rgba(52, 211, 153, 0.18);
+      --danger: #fb7185;
+      --text: #f9fafb;
+      --text-soft: #a3a6c4;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --shadow-strong: 0 22px 50px rgba(0, 0, 0, 0.85);
+    }
 
-    <!-- Bloco de Importação e Configuração do Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, onSnapshot, collection, setDoc, updateDoc, arrayUnion, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-        // Variáveis globais obrigatórias no ambiente Canvas
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "MOCK_API_KEY",
-            authDomain: "MOCK_AUTH_DOMAIN",
-            projectId: "MOCK_PROJECT_ID",
-            storageBucket: "MOCK_STORAGE_BUCKET",
-            messagingSenderId: "MOCK_SENDER_ID",
-            appId: "MOCK_APP_ID"
-        };
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-grad);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
 
-        let app, db, auth;
-        let userId = null;
-        let isAuthReady = false;
+    .phone-frame {
+      width: 100%;
+      max-width: 420px;
+      height: 90vh;
+      max-height: 860px;
+      background: linear-gradient(145deg, #050611, #050816);
+      border-radius: 32px;
+      box-shadow:
+        0 0 0 2px rgba(244, 200, 108, 0.2),
+        var(--shadow-strong);
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
 
-        // Funções exportadas para o escopo global do script regular
-        window.firebaseInit = async function() {
-            try {
-                app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-                auth = getAuth(app);
-                
-                // 1. Autenticação
-                if (initialAuthToken) {
-                    await signInWithCustomToken(auth, initialAuthToken);
-                } else {
-                    await signInAnonymously(auth);
-                }
-                
-                // 2. Listener de Estado de Autenticação
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-                        console.log("Firebase Auth OK. User ID:", userId);
-                        window.renderProfile();
-                        window.renderHabits();
-                    } else {
-                        // Tratar desautenticação
-                        userId = null;
-                        isAuthReady = true;
-                        window.renderProfile(); // Renderizar com dados mock se deslogado
-                    }
-                });
-            } catch (error) {
-                console.error("Erro na inicialização do Firebase:", error);
-            }
-        };
+    .phone-inner {
+      border-radius: 26px;
+      background: radial-gradient(circle at top, #161a2c 0, #050611 42%, #020309 100%);
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 16px 14px 10px;
+      position: relative;
+    }
 
-        window.db = db; // Exportar db para ser usado em outras funções
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-soft);
+      opacity: 0.8;
+      margin-bottom: 8px;
+    }
 
-        // Função de salvar hábito (Firestore)
-        window.saveHabit = async function(habitData) {
-            if (!userId) { console.error("Usuário não autenticado."); return; }
-            if (!db) { console.error("Firestore não inicializado."); return; }
+    .pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(244, 200, 108, 0.35);
+      background: linear-gradient(120deg, rgba(244, 200, 108, 0.12), rgba(10, 12, 24, 0.9));
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
 
-            const userHabitsRef = collection(db, `artifacts/${appId}/users/${userId}/habits`);
-            try {
-                // Usa setDoc com um ID gerado automaticamente se não for fornecido, ou um ID específico
-                const habitId = habitData.id || crypto.randomUUID();
-                await setDoc(doc(userHabitsRef, habitId), {
-                    ...habitData,
-                    createdAt: new Date().toISOString(),
-                    completed: false,
-                    userId: userId
-                });
-                console.log("Hábito salvo com sucesso:", habitId);
-            } catch (e) {
-                console.error("Erro ao adicionar hábito:", e);
-            }
-        };
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(52, 211, 153, 0.9);
+    }
 
-        // Função de atualizar perfil (Firestore)
-        window.updateProfile = async function(updates) {
-            if (!userId) { console.error("Usuário não autenticado."); return; }
-            if (!db) { console.error("Firestore não inicializado."); return; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
 
-            const profileRef = doc(db, `artifacts/${appId}/users/${userId}/profile/data`);
-            try {
-                await setDoc(profileRef, updates, { merge: true });
-                console.log("Perfil atualizado:", updates);
-            } catch (e) {
-                console.error("Erro ao atualizar perfil:", e);
-            }
-        };
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #f4c86c, #8b5cf6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+      box-shadow: 0 0 0 2px rgba(244, 200, 108, 0.25);
+    }
 
-        // Função de update (usada para completar hábito)
-        window.updateHabit = async function(habitId, updates) {
-            if (!userId) { console.error("Usuário não autenticado."); return; }
-            if (!db) { console.error("Firestore não inicializado."); return; }
+    .title-block {
+      flex: 1;
+      margin-left: 10px;
+    }
 
-            const habitRef = doc(db, `artifacts/${appId}/users/${userId}/habits`, habitId);
-            try {
-                await updateDoc(habitRef, updates);
-                console.log("Hábito atualizado:", habitId, updates);
-            } catch (e) {
-                console.error("Erro ao atualizar hábito:", e);
-            }
-        };
+    .title-block h1 {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
 
-        // Listener de hábitos para renderização
-        window.renderHabits = function() {
-            if (!isAuthReady || !userId || !db) return;
+    .title-block p {
+      font-size: 11px;
+      color: var(--text-soft);
+      margin-top: 2px;
+    }
 
-            const habitsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/habits`);
-            const q = query(habitsCollectionRef, where("completed", "==", false)); // Apenas hábitos não concluídos
+    .badge-live {
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(5, 220, 124, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.55);
+      font-size: 10px;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
 
-            onSnapshot(q, (snapshot) => {
-                const habitsList = document.getElementById('habits-list');
-                if (!habitsList) return;
+    .badge-live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px rgba(52, 211, 153, 0.9);
+    }
 
-                habitsList.innerHTML = '';
-                if (snapshot.empty) {
-                    habitsList.innerHTML = `<p class="text-gray-500 italic text-center py-4">Nenhuma Rotina de Elite ativa. Use o Alpha.AI para criar!</p>`;
-                    return;
-                }
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+      padding-bottom: 6px;
+    }
 
-                snapshot.docs.forEach(docSnap => {
-                    const habit = docSnap.data();
-                    const habitId = docSnap.id;
-                    
-                    // Renderiza o card de hábito (modelo da Aba Hoje)
-                    const habitCard = `
-                        <div class="glass-card p-4 rounded-xl flex items-center justify-between hover:bg-white/10">
-                            <div class="flex items-center space-x-4">
-                                <button onclick="window.completeHabit('${habitId}')" class="w-6 h-6 border-2 border-yellow-500 rounded-full flex-shrink-0 hover:bg-yellow-500/20 transition"></button>
-                                <div>
-                                    <p class="font-semibold text-lg text-white">${habit.name || 'Nova Meta'}</p>
-                                    <p class="text-sm text-gray-400">${habit.time || 'Aguardando execução'} - ${habit.description || 'Foco na Alta Performance.'}</p>
-                                </div>
-                            </div>
-                            <i class="ph ph-zap-fill w-5 h-5 icon-neon"></i>
-                        </div>
-                    `;
-                    habitsList.innerHTML += habitCard;
-                });
-            }, (error) => {
-                console.error("Erro ao receber updates de hábitos:", error);
-            });
-        };
-    </script>
-    <!-- FIM DO BLOCO FIREBASE -->
+    .scroll-area::-webkit-scrollbar {
+      width: 3px;
+    }
 
-    <style>
-        /* Cores e Estilos Globais Premium */
-        :root {
-            --color-black-prime: #0a0a0a;
-            --color-gold: #F2C94C; /* Dourado */
-            --color-neon-purple: #9B51E0; /* Roxo Neon */
-        }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--color-black-prime);
-            color: #E5E7EB; /* Branco elegante */
-        }
+    .scroll-area::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+    }
 
-        /* Glassmorphism Base (Containers Principais) */
-        .glass-card {
-            background-color: rgba(255, 255, 255, 0.05); /* Leve transparência */
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5); /* Sombra intensa */
-            transition: all 0.3s ease;
-        }
+    /* Main balance card */
+    .balance-card {
+      background: radial-gradient(circle at top left, rgba(244, 200, 108, 0.18), rgba(7, 10, 28, 0.95));
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(244, 200, 108, 0.5);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+      padding: 16px 16px 14px;
+      margin-bottom: 14px;
+      position: relative;
+      overflow: hidden;
+    }
 
-        /* Botão Dourado Premium (CTA) */
-        .btn-gold {
-            background-image: linear-gradient(to right, var(--color-gold) 0%, #FFD700 100%);
-            color: var(--color-black-prime);
-            font-weight: bold;
-            box-shadow: 0 4px 15px rgba(242, 201, 76, 0.5);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .btn-gold:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(242, 201, 76, 0.8);
-        }
+    .balance-card::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      background:
+        radial-gradient(circle at 10% 0, rgba(244, 200, 108, 0.26), transparent 50%),
+        radial-gradient(circle at 90% 40%, rgba(59, 130, 246, 0.22), transparent 55%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
 
-        /* Estilo para Ícones Neon Roxo */
-        .icon-neon {
-            color: var(--color-neon-purple);
-            filter: drop-shadow(0 0 4px var(--color-neon-purple));
-        }
+    .balance-top,
+    .balance-bottom {
+      position: relative;
+      z-index: 1;
+    }
 
-        /* Estilo para Abas Ativas na Navegação Inferior */
-        .nav-item.active {
-            color: var(--color-gold);
-            filter: drop-shadow(0 0 6px var(--color-gold));
-        }
+    .balance-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(243, 244, 246, 0.92);
+      opacity: 0.92;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-        /* Estilo para o Badge VIP Dourado */
-        .badge-vip {
-            background-color: var(--color-gold);
-            color: var(--color-black-prime);
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 9999px;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-            box-shadow: 0 0 8px rgba(242, 201, 76, 0.8);
-        }
+    .balance-value {
+      margin-top: 6px;
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
 
-        /* Esconder abas inativas */
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-    </style>
+    .balance-value span.main {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .balance-value span.currency {
+      font-size: 13px;
+      text-transform: uppercase;
+      opacity: 0.9;
+      margin-bottom: 4px;
+    }
+
+    .balance-sub {
+      margin-top: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: rgba(243, 244, 246, 0.9);
+    }
+
+    .balance-sub strong {
+      font-weight: 600;
+    }
+
+    .chip-growth {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(5, 46, 22, 0.8);
+      color: #bbf7d0;
+      border: 1px solid rgba(34, 197, 94, 0.9);
+      box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+    }
+
+    .chip-growth span.arrow {
+      font-size: 12px;
+    }
+
+    .chip-growth span.value {
+      font-weight: 600;
+    }
+
+    .balance-footer {
+      margin-top: 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11px;
+      color: rgba(243, 244, 246, 0.88);
+      opacity: 0.95;
+      border-top: 1px dashed rgba(243, 244, 246, 0.22);
+      padding-top: 8px;
+    }
+
+    .balance-footer span.label {
+      opacity: 0.75;
+    }
+
+    .balance-footer span.value {
+      font-weight: 600;
+    }
+
+    /* KPI grid */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .kpi-card {
+      background: linear-gradient(150deg, var(--card), #050814);
+      border-radius: var(--radius-md);
+      padding: 10px 11px;
+      border: 1px solid var(--border-soft);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.75);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::after {
+      content: "";
+      position: absolute;
+      inset: -50%;
+      opacity: 0.24;
+      background: radial-gradient(circle at 0 0, rgba(244, 200, 108, 0.4), transparent 55%);
+      pointer-events: none;
+    }
+
+    .kpi-card h3 {
+      position: relative;
+      z-index: 1;
+      font-size: 11px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      margin-bottom: 4px;
+    }
+
+    .kpi-main {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    .kpi-main .value {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .kpi-main .tag {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      color: var(--text-soft);
+    }
+
+    .kpi-footer {
+      position: relative;
+      z-index: 1;
+      font-size: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 2px;
+    }
+
+    .kpi-footer span.delta {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .kpi-footer span.delta.positive {
+      color: #4ade80;
+    }
+
+    .kpi-footer span.delta.negative {
+      color: #fb7185;
+    }
+
+    .kpi-footer span.label {
+      color: var(--text-soft);
+      opacity: 0.8;
+    }
+
+    /* Chart card */
+    .chart-card {
+      background: linear-gradient(165deg, var(--card-soft), #050814);
+      border-radius: var(--radius-md);
+      padding: 11px 12px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.38);
+      margin-bottom: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8);
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .chart-header h2 {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .chart-header span {
+      font-size: 10px;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+    }
+
+    .chart-tabs {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      margin-bottom: 6px;
+    }
+
+    .chart-tab {
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      color: var(--text-soft);
+      cursor: default;
+    }
+
+    .chart-tab.active {
+      background: linear-gradient(120deg, var(--gold), #fbbf24);
+      color: #020617;
+      font-weight: 600;
+    }
+
+    .chart-body {
+      margin-top: 2px;
+    }
+
+    .chart-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 110px;
+      margin-bottom: 6px;
+    }
+
+    .chart-line {
+      flex: 1;
+      height: 100%;
+      border-radius: 12px;
+      background: radial-gradient(circle at top, rgba(244, 200, 108, 0.18), transparent 60%);
+      position: relative;
+    }
+
+    .chart-line svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0 0 14px rgba(244, 200, 108, 0.9));
+    }
+
+    .chart-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .chart-meta .legend {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(120deg, var(--gold), #fbbf24);
+      box-shadow: 0 0 10px rgba(248, 250, 252, 0.9);
+    }
+
+    .chart-meta .total {
+      font-size: 11px;
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .chart-meta .total strong {
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .chart-months {
+      margin-top: 3px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: rgba(148, 163, 184, 0.9);
+      text-transform: uppercase;
+    }
+
+    /* Transactions */
+    .list-card {
+      background: linear-gradient(160deg, #050814, var(--card));
+      border-radius: var(--radius-md);
+      padding: 10px 11px;
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      margin-bottom: 10px;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, 0.9);
+    }
+
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .list-header h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-soft);
+    }
+
+    .list-header span {
+      font-size: 10px;
+      color: rgba(148, 163, 184, 0.95);
+    }
+
+    .tx-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(75, 85, 99, 0.6);
+      font-size: 11px;
+    }
+
+    .tx-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .tx-left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .tx-title {
+      font-weight: 500;
+    }
+
+    .tx-meta {
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .tx-right {
+      text-align: right;
+    }
+
+    .tx-amount {
+      font-weight: 600;
+      color: #bbf7d0;
+    }
+
+    .tx-tag {
+      font-size: 10px;
+      color: rgba(148, 163, 184, 0.9);
+    }
+
+    /* Bottom nav */
+    .bottom-nav {
+      margin-top: 2px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(15, 23, 42, 0.9);
+      display: flex;
+      justify-content: space-around;
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.75;
+    }
+
+    .nav-item.active {
+      color: var(--gold);
+      opacity: 1;
+    }
+
+    .nav-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 20%, rgba(248, 250, 252, 0.9), rgba(15, 23, 42, 1));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      box-shadow: 0 0 12px rgba(248, 250, 252, 0.55);
+    }
+
+    .nav-item.active .nav-icon {
+      background: radial-gradient(circle at 20% 0, var(--gold), #f97316);
+      box-shadow:
+        0 0 0 1px rgba(248, 250, 252, 0.6),
+        0 0 18px rgba(251, 191, 36, 0.9);
+      color: #020617;
+      font-weight: 600;
+    }
+
+    .hint {
+      position: absolute;
+      bottom: 14px;
+      right: 18px;
+      font-size: 9px;
+      color: rgba(148, 163, 184, 0.75);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .hint span {
+      color: rgba(244, 200, 108, 0.85);
+    }
+
+    @media (max-width: 480px) {
+      .phone-frame {
+        border-radius: 0;
+        height: 100vh;
+        max-height: none;
+        box-shadow: none;
+      }
+    }
+  </style>
 </head>
-<body class="flex flex-col h-screen overflow-hidden">
-
-    <!-- Container Principal do Aplicativo -->
-    <div id="app-container" class="flex flex-col flex-grow w-full max-w-md mx-auto relative">
-
-        <!-- Header Fixo (Nome do App Centralizado + Subtítulo + VIP) -->
-        <header class="p-4 flex justify-between items-center glass-card z-30 border-b border-white/20">
-            <!-- Centralização do Título e Subtítulo -->
-            <div class="flex-grow flex flex-col items-center">
-                <h1 class="text-3xl font-extrabold tracking-widest text-yellow-400 filter drop-shadow-[0_0_8px_rgba(242,201,76,0.8)]">
-                    <span class="icon-neon">Billion</span>Mind
-                </h1>
-                <!-- Subtítulo Elegante e Discreto -->
-                <p class="text-xs text-gray-400 mt-1 italic">Sua rotina. Seu poder. Seu futuro milionário.</p>
-            </div>
-            <!-- Badge VIP (mantido à direita) -->
-            <button onclick="showVipModal()" class="flex items-center space-x-2 badge-vip absolute right-4 top-4">
-                <i class="ph ph-crown-simple text-black"></i>
-                <span id="vip-status">PRO</span>
-            </button>
-        </header>
-
-        <!-- Conteúdo das Abas (Scrollable Area) -->
-        <main class="flex-grow overflow-y-auto p-4 space-y-6">
-
-            <!-- 1. ABA HOJE (The Elite Day) -->
-            <section id="tab-hoje" class="tab-content active">
-                <div class="space-y-6">
-                    <!-- Status Bars -->
-                    <div class="grid grid-cols-3 gap-3">
-                        <div class="p-3 glass-card rounded-xl text-center">
-                            <p class="text-xs text-gray-400 uppercase">XP (Execução)</p>
-                            <p id="profile-xp" class="text-2xl font-bold text-green-400 mt-1">1800</p>
-                        </div>
-                        <div class="p-3 glass-card rounded-xl text-center">
-                            <p class="text-xs text-gray-400 uppercase">Energy (Foco)</p>
-                            <p id="profile-energy" class="text-2xl font-bold text-red-400 mt-1">75%</p>
-                        </div>
-                        <div class="p-3 glass-card rounded-xl text-center">
-                            <p class="text-xs text-gray-400 uppercase">Status</p>
-                            <p class="text-xl font-bold mt-1 text-white badge-vip">
-                                LEO
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- Frase Diária de Mentalidade Milionária -->
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-l-yellow-500">
-                        <p class="text-lg font-semibold text-yellow-400 mb-2">Frase de Elite (28 Nov)</p>
-                        <p class="text-white italic">"Seus hábitos de hoje são o alicerce do seu primeiro milhão. A disciplina é o custo do luxo."</p>
-                    </div>
-
-                    <!-- Carrossel de Depoimentos -->
-                    <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Resultados de Elite</h2>
-                    <div id="testimonial-carousel" class="relative w-full overflow-hidden mb-6 h-28">
-                        <div id="carousel-track" class="flex transition-transform duration-500 ease-in-out h-full">
-                            <!-- Depoimentos serão renderizados aqui pelo JS -->
-                        </div>
-                        <div id="carousel-dots" class="flex justify-center space-x-2 mt-2 absolute bottom-0 w-full"></div>
-                    </div>
-                    
-                    <!-- Rotina de Elite -->
-                    <h2 class="text-2xl font-bold text-white mb-4 border-b border-gray-700 pb-2">Rotina de Elite: Alta Performance</h2>
-                    <div id="habits-list" class="space-y-3">
-                        <!-- Cards de Hábito serão renderizados pelo JS (onSnapshot) -->
-                        <div class="glass-card p-4 rounded-xl flex items-center justify-between hover:bg-white/10">
-                            <div class="flex items-center space-x-4">
-                                <button onclick="completeHabit('mock-1')" class="w-6 h-6 border-2 border-yellow-500 rounded-full flex-shrink-0 hover:bg-yellow-500/20 transition"></button>
-                                <div>
-                                    <p class="font-semibold text-lg text-white">Leitura Estratégica</p>
-                                    <p class="text-sm text-gray-400">06:00 - 30 mins sobre mercado.</p>
-                                </div>
-                            </div>
-                            <i class="ph ph-zap-fill w-5 h-5 icon-neon"></i>
-                        </div>
-                    </div>
-
-                    <!-- Card de Conclusão da Rotina -->
-                    <div class="p-4 bg-gray-700/50 rounded-xl text-center">
-                        <p class="text-gray-400">Você está 70% no Caminho do Milhão hoje. Mantenha a Disciplina!</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 2. ABA PLANEJAR (Strategic Ascent) -->
-            <section id="tab-planejar" class="tab-content">
-                <div class="space-y-6">
-                    <h2 class="text-2xl font-bold text-white border-b border-gray-700 pb-2">Planejamento Estratégico</h2>
-
-                    <!-- Botão de Criação de Alto Nível (usando AlphaAI) -->
-                    <button onclick="showAlphaAIModal()" class="w-full btn-gold py-3 rounded-xl flex items-center justify-center space-x-2">
-                        <i class="ph ph-brain-fill w-5 h-5 text-black"></i>
-                        <span>DEIXAR ALPHA.AI CRIAR MEU PLANO HOJE</span>
-                    </button>
-
-                    <!-- Lista de Desafios (Cards) -->
-                    <h3 class="text-xl font-semibold text-white mt-6 mb-3">Desafios de Riqueza Ativos</h3>
-                    <div class="space-y-4">
-                        <!-- Card 1: Desafio -->
-                        <div class="glass-card p-4 rounded-xl">
-                            <h4 class="text-xl font-bold text-yellow-400">Dominando a Renda Passiva</h4>
-                            <p class="text-sm text-gray-400 mb-2">Desafio: 30 dias de estudo e aplicação em cripto/imóveis.</p>
-                            <div class="flex justify-between items-center text-sm mt-3">
-                                <span class="flex items-center space-x-1 text-blue-400"><i class="ph ph-layers-fill w-4 h-4"></i><span>Nível: Elite</span></span>
-                                <span class="flex items-center space-x-1 text-gray-400"><i class="ph ph-users-fill w-4 h-4"></i><span>1.2K Líderes</span></span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Categorias de Criação -->
-                    <h3 class="text-xl font-semibold text-white mt-6 mb-3">Crie com Alpha.AI</h3>
-                    <div class="grid grid-cols-2 gap-4">
-                        <button onclick="generateAlphaAIContent('Hábito de Riqueza')" class="glass-card p-4 rounded-xl text-center hover:border-yellow-500 transition border-2 border-transparent">
-                            <i class="ph ph-clock-fill w-6 h-6 icon-neon mx-auto mb-1"></i>
-                            <p class="text-sm font-semibold">Novo Hábito</p>
-                        </button>
-                        <button onclick="generateAlphaAIContent('Rotina de Alta Performance')" class="glass-card p-4 rounded-xl text-center hover:border-yellow-500 transition border-2 border-transparent">
-                            <i class="ph ph-calendar-check-fill w-6 h-6 icon-neon mx-auto mb-1"></i>
-                            <p class="text-sm font-semibold">Rotina de Elite</p>
-                        </button>
-                        <button onclick="generateAlphaAIContent('Meta Financeira 7-Dígitos')" class="glass-card p-4 rounded-xl text-center hover:border-yellow-500 transition border-2 border-transparent">
-                            <i class="ph ph-currency-dollar-fill w-6 h-6 icon-neon mx-auto mb-1"></i>
-                            <p class="text-sm font-semibold">Meta Financeira</p>
-                        </button>
-                        <button onclick="generateAlphaAIContent('Desafio Pessoal')" class="glass-card p-4 rounded-xl text-center hover:border-yellow-500 transition border-2 border-transparent">
-                            <i class="ph ph-fire-fill w-6 h-6 icon-neon mx-auto mb-1"></i>
-                            <p class="text-sm font-semibold">Desafio VIP</p>
-                        </button>
-                    </div>
-
-                    <!-- Mensagem de Sucesso da Criação (Toast Placeholder) -->
-                    <div id="ai-toast" class="p-3 bg-green-900/50 rounded-lg text-green-300 text-center hidden"></div>
-                </div>
-            </section>
-
-            <!-- 3. ABA AMIGOS (Inner Circle) -->
-            <section id="tab-amigos" class="tab-content">
-                <div class="space-y-6">
-                    <h2 class="text-2xl font-bold text-white border-b border-gray-700 pb-2">Seu Círculo de Elite</h2>
-                    
-                    <p class="text-gray-400">Networking é Net-Worth. Conecte-se apenas com quem está no caminho do topo.</p>
-                    
-                    <!-- Botão para Adicionar Amigo (Estilo VIP) -->
-                    <button class="w-full btn-gold py-3 rounded-xl flex items-center justify-center space-x-2">
-                        <i class="ph ph-user-plus-fill w-5 h-5 text-black"></i>
-                        <span>ADICIONAR NO CÍRCULO VIP</span>
-                    </button>
-
-                    <!-- Ranking de Disciplina (Novo Elemento) -->
-                    <h3 class="text-xl font-semibold text-white mt-6 mb-3">Ranking de Disciplina Global</h3>
-                    <div class="glass-card p-4 rounded-xl space-y-3">
-                        <div class="flex justify-between items-center text-yellow-400 font-bold">
-                            <span>#1 | Marcus S.</span> <span>XP: 5800</span>
-                        </div>
-                        <div class="flex justify-between items-center text-white">
-                            <span>#2 | Vivian I.</span> <span>XP: 4900</span>
-                        </div>
-                        <div class="flex justify-between items-center text-white">
-                            <span>#3 | Você (LEO)</span> <span>XP: 1800</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 4. ABA MENU (Control Center) -->
-            <section id="tab-menu" class="tab-content">
-                <div class="space-y-6">
-                    <h2 class="text-2xl font-bold text-white border-b border-gray-700 pb-2">Control Center</h2>
-
-                    <!-- ALPHA.AI CHAT INTEGRADO -->
-                    <div class="glass-card p-4 rounded-xl border-2 border-purple-500">
-                        <h3 class="text-xl font-bold mb-2 flex items-center space-x-2 text-purple-400">
-                            <i class="ph ph-brain-fill w-6 h-6 icon-neon"></i>
-                            <span>Alpha.AI: Seu Coach Milionário</span>
-                        </h3>
-                        <div id="alpha-ai-chat-history" class="bg-black/50 p-3 rounded-lg max-h-40 overflow-y-auto mb-3 text-sm text-gray-300">
-                            <p class="text-yellow-400 mb-1">Alpha.AI:</p>
-                            <p>Pronto para maximizar seu potencial. Qual é o seu objetivo financeiro mais agressivo hoje?</p>
-                        </div>
-                        <div class="flex space-x-2">
-                            <input id="alpha-ai-input" type="text" placeholder="Pergunte ao Alpha.AI..." class="flex-grow p-2 rounded-lg bg-gray-700/50 text-white placeholder-gray-500 focus:ring-1 focus:ring-purple-500 focus:outline-none text-sm">
-                            <button onclick="sendAlphaAIChat()" class="bg-purple-600 p-2 rounded-lg hover:bg-purple-700 transition"><i class="ph ph-paper-plane-right-fill w-4 h-4 text-white"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Itens do Menu (Lista) -->
-                    <div class="space-y-2">
-                        <a onclick="showVipModal()" class="cursor-pointer flex justify-between items-center glass-card p-3 rounded-xl hover:bg-white/10">
-                            <span class="flex items-center space-x-3 text-white">
-                                <i class="ph ph-trophy-fill w-5 h-5 icon-neon"></i>
-                                <span>Conteúdo VIP e Exclusivo</span>
-                            </span>
-                            <i class="ph ph-caret-right-fill w-5 h-5 text-gray-500"></i>
-                        </a>
-                        <a href="#" class="flex justify-between items-center glass-card p-3 rounded-xl hover:bg-white/10">
-                            <span class="flex items-center space-x-3 text-white">
-                                <i class="ph ph-chart-line-up-fill w-5 h-5 icon-neon"></i>
-                                <span>Índice de Potencial Humano (IPH)</span>
-                            </span>
-                            <span class="text-sm text-yellow-400">92%</span>
-                        </a>
-                        <!-- ... outros itens do menu ... -->
-                    </div>
-                </div>
-
-                <!-- Seção de Planos VIP (Acesso Rápido) -->
-                <div class="mt-8">
-                    <h3 class="text-xl font-bold text-yellow-400 mb-3 border-b border-gray-700 pb-2">Maximizando Seu Acesso (Planos)</h3>
-                    
-                    <!-- Contador de Urgência -->
-                    <div id="urgency-counter" class="glass-card p-3 rounded-xl text-center mb-6 border-2 border-red-500 animate-pulse">
-                        <p class="text-sm font-semibold text-red-400">🔥 <span id="active-users">23</span> pessoas estão ativando o BillionMind agora.</p>
-                    </div>
-
-                    <div class="space-y-4">
-                        
-                        <!-- Plano Grátis -->
-                        <div class="glass-card p-4 rounded-xl border-l-4 border-gray-500">
-                            <p class="font-semibold text-lg">Plano Grátis (Mindset Básico)</p>
-                            <p class="text-sm text-gray-400">Acesso limitado a rotinas e Chat IA simples.</p>
-                            <p class="text-xs text-yellow-600 mt-1 italic">Recursos limitados — ideal para começar hoje.</p>
-                            <button class="mt-2 text-sm text-purple-400 font-semibold hover:underline">Detalhes</button>
-                        </div>
-
-                        <!-- Plano Pro -->
-                        <div class="glass-card p-4 rounded-xl border-l-4 border-purple-500">
-                            <p class="font-semibold text-lg flex justify-between items-center">
-                                <span>Plano Pro</span>
-                                <span class="text-purple-400">R$ 29,98/mês</span>
-                            </p>
-                            <p class="text-sm text-gray-400">IA Intermediária, hábitos e rotinas ilimitadas, dashboards completos.</p>
-                            <p class="text-xs text-purple-400 mt-1 italic">Mais vendido — desbloqueie a performance completa.</p>
-                            <button onclick="subscribePro()" class="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-purple-700 transition">Assinar Plano Pro</button>
-                        </div>
-
-                        <!-- Plano VIP (Dourado) -->
-                        <div class="glass-card p-4 rounded-xl border-l-4 border-yellow-500">
-                            <p class="font-semibold text-lg flex justify-between items-center">
-                                <span>Plano VIP <span class="badge-vip">Master</span></span>
-                                <span class="text-yellow-400">R$ 39,98/mês</span>
-                            </p>
-                            <p class="text-sm text-gray-400">Alpha.AI avançado (Coach Milionário), Rotinas de Elite, Acesso Total, Badge Dourado.</p>
-                            <p class="text-xs text-yellow-400 mt-1 italic">Acesso total — vagas limitadas por período.</p>
-                            <button onclick="subscribeVIP()" class="mt-3 w-full btn-gold py-2 rounded-lg text-sm">ASSINAR PLANO VIP</button>
-                        </div>
-
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!-- Navegação Inferior Fixa (Bottom Navbar) -->
-        <nav class="p-2 glass-card flex justify-around items-center z-20 border-t border-white/20 sticky bottom-0">
-            <!-- Botão Hoje -->
-            <button class="nav-item active flex flex-col items-center p-2" onclick="switchTab('hoje', this)">
-                <i class="ph ph-house-fill w-6 h-6"></i>
-                <span class="text-xs mt-1 font-medium">Hoje</span>
-            </button>
-            <!-- Botão Planejar -->
-            <button class="nav-item flex flex-col items-center p-2" onclick="switchTab('planejar', this)">
-                <i class="ph ph-target-fill w-6 h-6"></i>
-                <span class="text-xs mt-1 font-medium">Planejar</span>
-            </button>
-            <!-- Botão Amigos -->
-            <button class="nav-item flex flex-col items-center p-2" onclick="switchTab('amigos', this)">
-                <i class="ph ph-users-fill w-6 h-6"></i>
-                <span class="text-xs mt-1 font-medium">Amigos</span>
-            </button>
-            <!-- Botão Menu -->
-            <button class="nav-item flex flex-col items-center p-2" onclick="switchTab('menu', this)">
-                <i class="ph ph-list-fill w-6 h-6"></i>
-                <span class="text-xs mt-1 font-medium">Menu</span>
-            </button>
-        </nav>
-
-        <!-- MODAL VIP (Requisito: Modal VIP) -->
-        <div id="vip-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4" onclick="hideVipModal()">
-            <div class="glass-card bg-gray-900/90 p-6 rounded-xl w-full max-w-sm" onclick="event.stopPropagation()">
-                <div class="flex justify-between items-start mb-4">
-                    <h3 class="text-2xl font-bold text-yellow-400">Upgrade para Elite</h3>
-                    <button onclick="hideVipModal()" class="text-gray-400 hover:text-white"><i class="ph ph-x-circle-fill w-6 h-6"></i></button>
-                </div>
-                <p class="text-gray-300 mb-6">Desbloqueie o poder total do Alpha.AI para seu caminho milionário.</p>
-                <!-- Repetição dos planos, garantindo os botões do Stripe -->
-                <div class="space-y-4">
-                     <!-- Plano Pro -->
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-purple-500">
-                        <p class="font-semibold text-lg flex justify-between items-center">
-                            <span>Plano Pro</span>
-                            <span class="text-purple-400">R$ 29,98/mês</span>
-                        </p>
-                        <p class="text-xs text-purple-400 mt-1 italic">Mais vendido — desbloqueie a performance completa.</p>
-                        <button onclick="subscribePro()" class="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-purple-700 transition">Assinar Plano Pro</button>
-                    </div>
-
-                    <!-- Plano VIP (Dourado) -->
-                    <div class="glass-card p-4 rounded-xl border-l-4 border-yellow-500">
-                        <p class="font-semibold text-lg flex justify-between items-center">
-                            <span>Plano VIP <span class="badge-vip">Master</span></span>
-                            <span class="text-yellow-400">R$ 39,98/mês</span>
-                        </p>
-                        <p class="text-xs text-yellow-400 mt-1 italic">Acesso total — vagas limitadas por período.</p>
-                        <button onclick="subscribeVIP()" class="mt-3 w-full btn-gold py-2 rounded-lg text-sm">ASSINAR PLANO VIP</button>
-                    </div>
-                </div>
-            </div>
+<body>
+  <div class="phone-frame">
+    <div class="phone-inner">
+      <div class="status-bar">
+        <div class="pill">
+          <span class="pill-dot"></span>
+          Painel de ganhos
         </div>
+        <span>100% · 4G ▸▸▸</span>
+      </div>
 
-        <!-- MODAL ALPHA.AI (Requisito: Modal AlphaAI) -->
-        <div id="alpha-ai-modal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4" onclick="hideAlphaAIModal()">
-            <div class="glass-card bg-gray-900/90 p-6 rounded-xl w-full max-w-lg" onclick="event.stopPropagation()">
-                <div class="flex justify-between items-start mb-4">
-                    <h3 class="text-2xl font-bold text-purple-400">Alpha.AI Creator</h3>
-                    <button onclick="hideAlphaAIModal()" class="text-gray-400 hover:text-white"><i class="ph ph-x-circle-fill w-6 h-6"></i></button>
-                </div>
-                
-                <p id="ai-modal-status" class="text-sm text-gray-400 mb-4">Crie hábitos, rotinas e metas de alta performance com a IA.</p>
-                <input id="ai-modal-input" type="text" placeholder="Ex: Crie um hábito de investimento diário." class="w-full p-3 rounded-lg bg-gray-700/50 text-white placeholder-gray-500 focus:ring-1 focus:ring-purple-500 focus:outline-none mb-4">
-                
-                <button onclick="generateAlphaAIContent('Personalizado')" class="w-full bg-purple-600 text-white py-3 rounded-lg font-bold hover:bg-purple-700 transition flex items-center justify-center space-x-2">
-                    <i class="ph ph-sparkle-fill w-5 h-5"></i>
-                    <span>Gerar Conteúdo de Elite</span>
-                </button>
-
-                <div id="ai-modal-output" class="mt-4 p-3 bg-black/50 rounded-lg max-h-40 overflow-y-auto text-sm text-gray-300">
-                    <!-- Output da IA aqui -->
-                    <p class="text-gray-500">O conteúdo gerado pelo Alpha.AI aparecerá aqui. Clique em "Gerar"!</p>
-                </div>
-                <button id="ai-modal-save-btn" onclick="saveGeneratedContent()" class="mt-3 w-full btn-gold py-2 rounded-lg text-sm hidden">SALVAR ESTE CONTEÚDO (HABIT/ROTINA)</button>
-            </div>
+      <header>
+        <div class="avatar">BB</div>
+        <div class="title-block">
+          <h1>BillionMind Invest</h1>
+          <p>Ganhos em tempo real dos seus usuários</p>
         </div>
+        <div class="badge-live">
+          <span class="badge-live-dot"></span>
+          Live
+        </div>
+      </header>
 
+      <div class="scroll-area">
+        <!-- SALDO PRINCIPAL -->
+        <section class="balance-card">
+          <div class="balance-top">
+            <div class="balance-label">
+              <span>Saldo total recebido</span>
+              <span>Atualizado agora</span>
+            </div>
+            <div class="balance-value">
+              <span class="currency">R$</span>
+              <span class="main counter" data-target="124872.37">0,00</span>
+            </div>
+            <div class="balance-sub">
+              <span>Lucro líquido nas últimas 24h: <strong class="counter" data-target="5876.22">0,00</strong></span>
+              <span class="chip-growth">
+                <span class="arrow">▲</span>
+                <span class="value">+42,3%</span>
+              </span>
+            </div>
+          </div>
+          <div class="balance-bottom">
+            <div class="balance-footer">
+              <div>
+                <span class="label">Usuários ativos</span><br />
+                <span class="value counter" data-target="873">0</span>
+              </div>
+              <div>
+                <span class="label">Ticket médio</span><br />
+                <span class="value">R$ <span class="counter" data-target="142.56">0,00</span></span>
+              </div>
+              <div>
+                <span class="label">Reinvestimento</span><br />
+                <span class="value">72%</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- KPIs -->
+        <section class="kpis">
+          <div class="kpi-card">
+            <h3>Entrada hoje</h3>
+            <div class="kpi-main">
+              <span class="value">R$ <span class="counter" data-target="18254.91">0,00</span></span>
+              <span class="tag">Hoje</span>
+            </div>
+            <div class="kpi-footer">
+              <span class="delta positive">▲ +18,7%</span>
+              <span class="label">vs. ontem</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <h3>Este mês</h3>
+            <div class="kpi-main">
+              <span class="value">R$ <span class="counter" data-target="214587.42">0,00</span></span>
+              <span class="tag">Novembro</span>
+            </div>
+            <div class="kpi-footer">
+              <span class="delta positive">▲ +63,4%</span>
+              <span class="label">vs. mês passado</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- GRÁFICO -->
+        <section class="chart-card">
+          <div class="chart-header">
+            <h2>Lucro acumulado</h2>
+            <span>Visão geral</span>
+          </div>
+          <div class="chart-tabs">
+            <div class="chart-tab">7D</div>
+            <div class="chart-tab active">30D</div>
+            <div class="chart-tab">12M</div>
+          </div>
+          <div class="chart-body">
+            <div class="chart-row">
+              <div class="chart-line">
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stop-color="#f4c86c" />
+                      <stop offset="50%" stop-color="#fbbf24" />
+                      <stop offset="100%" stop-color="#22c55e" />
+                    </linearGradient>
+                    <linearGradient id="fillGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="rgba(244, 200, 108, 0.35)" />
+                      <stop offset="100%" stop-color="rgba(15, 23, 42, 0.05)" />
+                    </linearGradient>
+                  </defs>
+
+                  <!-- Área preenchida -->
+                  <path d="M0 80
+                           L10 78
+                           L20 72
+                           L30 70
+                           L40 62
+                           L50 52
+                           L60 42
+                           L70 36
+                           L80 26
+                           L90 18
+                           L100 12
+                           L100 100
+                           L0 100 Z"
+                        fill="url(#fillGradient)" />
+
+                  <!-- Linha principal -->
+                  <polyline
+                    points="0,80 10,78 20,72 30,70 40,62 50,52 60,42 70,36 80,26 90,18 100,12"
+                    fill="none"
+                    stroke="url(#lineGradient)"
+                    stroke-width="2.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+
+                  <!-- Pontos -->
+                  <g fill="#fefce8">
+                    <circle cx="30" cy="70" r="1.3" />
+                    <circle cx="60" cy="42" r="1.4" />
+                    <circle cx="100" cy="12" r="1.6" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+            <div class="chart-meta">
+              <div class="legend">
+                <span class="legend-dot"></span>
+                <span>Lucro real consolidado</span>
+              </div>
+              <div class="total">
+                +<strong>R$ 74.532,00</strong> nos últimos 30 dias
+              </div>
+            </div>
+            <div class="chart-months">
+              <span>Jun</span>
+              <span>Jul</span>
+              <span>Ago</span>
+              <span>Set</span>
+              <span>Out</span>
+              <span>Nov</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ÚLTIMAS ENTRADAS -->
+        <section class="list-card">
+          <div class="list-header">
+            <h3>Últimas entradas</h3>
+            <span>Fluxo em tempo real</span>
+          </div>
+
+          <div class="tx-row">
+            <div class="tx-left">
+              <span class="tx-title">Assinatura plano Premium</span>
+              <span class="tx-meta">ID user #873 · há 2 min</span>
+            </div>
+            <div class="tx-right">
+              <span class="tx-amount">+ R$ 297,00</span><br />
+              <span class="tx-tag">Stripe · Auto</span>
+            </div>
+          </div>
+
+          <div class="tx-row">
+            <div class="tx-left">
+              <span class="tx-title">Bônus de performance</span>
+              <span class="tx-meta">ID user #862 · há 4 min</span>
+            </div>
+            <div class="tx-right">
+              <span class="tx-amount">+ R$ 97,00</span><br />
+              <span class="tx-tag">In-App</span>
+            </div>
+          </div>
+
+          <div class="tx-row">
+            <div class="tx-left">
+              <span class="tx-title">Assinatura renovada</span>
+              <span class="tx-meta">ID user #859 · há 7 min</span>
+            </div>
+            <div class="tx-right">
+              <span class="tx-amount">+ R$ 147,00</span><br />
+              <span class="tx-tag">Renovação</span>
+            </div>
+          </div>
+
+          <div class="tx-row">
+            <div class="tx-left">
+              <span class="tx-title">Upgrade de plano</span>
+              <span class="tx-meta">ID user #851 · há 11 min</span>
+            </div>
+            <div class="tx-right">
+              <span class="tx-amount">+ R$ 497,00</span><br />
+              <span class="tx-tag">Pro → Elite</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- NAV INFERIOR -->
+      <nav class="bottom-nav">
+        <div class="nav-item active">
+          <div class="nav-icon">₿</div>
+          <span>Painel</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">📈</div>
+          <span>Investir</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">👥</div>
+          <span>Usuários</span>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">⚙️</div>
+          <span>Config.</span>
+        </div>
+      </nav>
+
+      <!-- legenda discreta (você pode apagar se não quiser aparecer) -->
+      <div class="hint">
+        painel <span>ilustrativo</span>
+      </div>
     </div>
+  </div>
 
-    <!-- JavaScript para Lógica do App, Carrossel, Modais e Integrações -->
-    <script>
-        // Variáveis de estado
-        let currentTab = 'hoje';
-        const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=";
-        const API_KEY = ""; // Será preenchido pelo Canvas em runtime
+  <script>
+    // Animação simples de contagem para os números
+    document.addEventListener("DOMContentLoaded", () => {
+      const counters = document.querySelectorAll(".counter");
 
-        // Dados Mock para Carrossel
-        const TESTIMONIALS = [
-            { text: "Aumentei minha disciplina em 300% em 7 dias.", author: "Leandro V." },
-            { text: "Esse app mudou meu foco para sempre.", author: "Helena R." },
-            { text: "Meu planejamento financeiro nunca foi tão claro.", author: "Marcos D." },
-            { text: "O AlphaAI me dá tarefas perfeitas para meu objetivo diário.", author: "Lucas M." },
-            { text: "Estou no caminho para o meu primeiro milhão.", author: "Vitor S." },
-        ];
-        let carouselIndex = 0;
+      counters.forEach(counter => {
+        const target = parseFloat(counter.getAttribute("data-target") || "0");
+        const isInt = Number.isInteger(target);
+        let current = 0;
+        const duration = 1200 + Math.random() * 600;
+        const start = performance.now();
 
-        // --- FUNÇÕES DE UI E NAVEGAÇÃO ---
+        function animate(now) {
+          const progress = Math.min((now - start) / duration, 1);
+          const eased = 1 - Math.pow(1 - progress, 3); // easeOutCubic
+          const value = target * eased;
 
-        /**
-         * Alterna a visibilidade das abas e atualiza o estado da navegação.
-         * @param {string} tabId O ID da aba (ex: 'hoje', 'planejar').
-         * @param {HTMLElement} element O botão de navegação clicado.
-         */
-        function switchTab(tabId, element) {
-            // Esconde todo o conteúdo das abas
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
+          if (isInt) {
+            counter.textContent = Math.round(value).toLocaleString("pt-BR");
+          } else {
+            counter.textContent = value.toLocaleString("pt-BR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
             });
+          }
 
-            // Mostra o conteúdo da aba selecionada
-            const targetTab = document.getElementById(`tab-${tabId}`);
-            if (targetTab) {
-                targetTab.classList.add('active');
-            }
-
-            // Atualiza o estado da navegação inferior
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            if (element) {
-                element.classList.add('active');
-            }
-            
-            currentTab = tabId;
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          }
         }
 
-        /**
-         * Simula a renderização do perfil (XP, Energy) - Usaria dados do Firestore.
-         */
-        function renderProfile() {
-            // Simulação de renderização de perfil com dados iniciais ou do Firestore
-            document.getElementById('profile-xp').textContent = '2500';
-            document.getElementById('profile-energy').textContent = '90%';
-            document.getElementById('vip-status').textContent = 'VIP Master';
-        }
-
-        /**
-         * Função para marcar um hábito como completo e salvar no Firestore.
-         * @param {string} habitId ID do hábito a ser completado.
-         */
-        window.completeHabit = async function(habitId) {
-            console.log(`Tentando completar hábito: ${habitId}`);
-            if (typeof window.updateHabit === 'function') {
-                await window.updateHabit(habitId, { completed: true, completedAt: new Date().toISOString() });
-                const toast = document.getElementById('ai-toast');
-                toast.textContent = `Hábito ${habitId} concluído! +XP!`;
-                toast.classList.remove('hidden', 'bg-red-900/50', 'text-red-300');
-                toast.classList.add('bg-green-900/50', 'text-green-300');
-                setTimeout(() => toast.classList.add('hidden'), 3000);
-            } else {
-                console.error("Função updateHabit não está disponível (Firebase não carregado?).");
-            }
-        };
-
-        // --- FUNÇÕES DE MODAIS ---
-
-        function showVipModal() {
-            document.getElementById('vip-modal').classList.remove('hidden');
-        }
-
-        function hideVipModal() {
-            document.getElementById('vip-modal').classList.add('hidden');
-        }
-
-        function showAlphaAIModal(itemType) {
-            document.getElementById('ai-modal-status').textContent = itemType ? `Crie sua ${itemType} de Elite.` : 'Crie hábitos, rotinas e metas de alta performance com a IA.';
-            document.getElementById('ai-modal-input').value = itemType ? `Gerar ${itemType} para o meu objetivo de 7 dígitos.` : '';
-            document.getElementById('ai-modal-output').innerHTML = '<p class="text-gray-500">O conteúdo gerado pelo Alpha.AI aparecerá aqui. Clique em "Gerar"!</p>';
-            document.getElementById('ai-modal-save-btn').classList.add('hidden');
-            document.getElementById('alpha-ai-modal').classList.remove('hidden');
-        }
-
-        function hideAlphaAIModal() {
-            document.getElementById('alpha-ai-modal').classList.add('hidden');
-        }
-
-        // --- FUNÇÕES DE ANIMAÇÃO E ESTADO ---
-
-        /**
-         * Inicia o carrossel de depoimentos automático.
-         */
-        function startTestimonialCarousel() {
-            const track = document.getElementById('carousel-track');
-            const dotsContainer = document.getElementById('carousel-dots');
-            const itemWidth = document.getElementById('testimonial-carousel').clientWidth;
-
-            // 1. Renderiza os itens e os pontos
-            track.innerHTML = TESTIMONIALS.map((t, i) => `
-                <div class="glass-card p-4 rounded-xl flex-shrink-0 w-full h-full flex flex-col justify-center border-l-4 border-purple-500" style="width: ${itemWidth}px;">
-                    <p class="text-sm italic text-white/90">"${t.text}"</p>
-                    <p class="text-xs text-yellow-400 font-semibold mt-1">— ${t.author}</p>
-                </div>
-            `).join('');
-
-            dotsContainer.innerHTML = TESTIMONIALS.map((_, i) => `
-                <span data-index="${i}" class="w-2 h-2 rounded-full bg-gray-600 transition duration-300 ${i === 0 ? 'bg-yellow-400' : ''}"></span>
-            `).join('');
-
-            // 2. Função de transição
-            const moveCarousel = () => {
-                carouselIndex = (carouselIndex + 1) % TESTIMONIALS.length;
-                track.style.transform = `translateX(-${carouselIndex * itemWidth}px)`;
-
-                // Atualiza pontos
-                document.querySelectorAll('#carousel-dots span').forEach((dot, i) => {
-                    if (i === carouselIndex) {
-                        dot.classList.add('bg-yellow-400');
-                        dot.classList.remove('bg-gray-600');
-                    } else {
-                        dot.classList.remove('bg-yellow-400');
-                        dot.classList.add('bg-gray-600');
-                    }
-                });
-            };
-
-            // 3. Inicia o intervalo
-            setInterval(moveCarousel, 4000);
-        }
-
-        /**
-         * Inicia a animação do contador de urgência.
-         */
-        function startUrgencyCounter() {
-            const counterElement = document.getElementById('active-users');
-            if (counterElement) {
-                let count = 23;
-                setInterval(() => {
-                    const delta = Math.floor(Math.random() * 3) - 1; // +1, 0, ou -1
-                    count = Math.max(20, count + delta); // Mantém o mínimo de 20
-                    counterElement.textContent = count;
-                }, 1500);
-            }
-        }
-
-        // --- FUNÇÕES ALPHA.AI (GEMINI API) ---
-
-        let generatedContentCache = null;
-
-        /**
-         * Simula o envio de mensagem para o Alpha.AI (Chat).
-         */
-        async function sendAlphaAIChat() {
-            const input = document.getElementById('alpha-ai-input');
-            const history = document.getElementById('alpha-ai-chat-history');
-            const userQuery = input.value.trim();
-
-            if (!userQuery) return;
-            
-            // Adiciona mensagem do usuário
-            history.innerHTML += `<p class="text-white mt-2">Você: ${userQuery}</p>`;
-            input.value = '';
-            history.scrollTop = history.scrollHeight;
-
-            // Simula loading
-            const loadingMsg = document.createElement('p');
-            loadingMsg.className = 'text-gray-500 italic mt-2';
-            loadingMsg.innerHTML = 'Alpha.AI está formulando a resposta...';
-            history.appendChild(loadingMsg);
-            history.scrollTop = history.scrollHeight;
-
-            const systemPrompt = "Você é Alpha.AI, um coach de mentalidade milionária, alta performance e disciplina. Responda como um mentor de riqueza, com foco em ações estratégicas, financeiras e de elite. Seja conciso e direto ao ponto.";
-            
-            try {
-                // Call the Gemini API (Exponential Backoff implemented implicitly by environment)
-                const payload = {
-                    contents: [{ parts: [{ text: userQuery }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] },
-                };
-
-                const response = await fetch(`${GEMINI_API_URL}${API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-                const aiResponse = result.candidates?.[0]?.content?.parts?.[0]?.text || "Erro: Não consegui processar sua mentalidade agora. Tente novamente.";
-                
-                // Remove loading
-                loadingMsg.remove();
-
-                // Adiciona resposta da IA
-                history.innerHTML += `<p class="text-yellow-400 mt-2">Alpha.AI:</p><p>${aiResponse}</p>`;
-                history.scrollTop = history.scrollHeight;
-                
-            } catch (error) {
-                console.error("Erro na chamada da Gemini API:", error);
-                loadingMsg.textContent = "Erro de conexão com o Alpha.AI. Tente novamente mais tarde.";
-            }
-        }
-
-        /**
-         * Gera conteúdo estruturado (Hábito/Rotina/Meta) para o Modal Alpha.AI.
-         * @param {string} itemType Tipo de conteúdo a ser gerado (Hábito de Riqueza, Rotina de Elite, etc.).
-         */
-        async function generateAlphaAIContent(itemType) {
-            const input = document.getElementById('ai-modal-input').value.trim();
-            const output = document.getElementById('ai-modal-output');
-            const saveBtn = document.getElementById('ai-modal-save-btn');
-            
-            // Se chamado pelo botão de Planejar, abre o modal
-            if (itemType !== 'Personalizado') {
-                 showAlphaAIModal(itemType);
-                 document.getElementById('ai-modal-input').value = input || `Gerar ${itemType} para o meu objetivo de 7 dígitos.`;
-            }
-            
-            const userPrompt = `Gerar um item de alta performance para o usuário com foco em riqueza. Tipo do item: ${itemType}. Detalhe do usuário: ${input}. Formate a resposta como um objeto JSON: {"name": "Nome da Ação", "description": "Descrição da Ação/Foco", "time": "Horário/Duração", "type": "${itemType}", "details": "Instruções do Coach"}`;
-            
-            output.innerHTML = '<p class="text-purple-400 italic">Alpha.AI está otimizando sua rotina...</p>';
-            saveBtn.classList.add('hidden');
-            
-            const systemPrompt = "Você é Alpha.AI. Sua tarefa é criar um único item de alta performance (hábito, rotina, meta) em português. Sua resposta deve ser *somente* o objeto JSON, e o conteúdo deve ser de um coach milionário de elite. O horário e a descrição devem ser precisos.";
-
-            try {
-                // Call the Gemini API for structured output
-                const payload = {
-                    contents: [{ parts: [{ text: userPrompt }] }],
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                "name": { "type": "STRING", "description": "Nome conciso e poderoso para o hábito/meta." },
-                                "description": { "type": "STRING", "description": "Descrição breve da ação e foco." },
-                                "time": { "type": "STRING", "description": "Horário ou duração da ação (e.g., '07:00' ou '30 mins')." },
-                                "type": { "type": "STRING", "enum": ["Hábito de Riqueza", "Rotina de Elite", "Meta Financeira 7-Dígitos", "Desafio Pessoal"] },
-                                "details": { "type": "STRING", "description": "Instruções detalhadas e motivacionais do coach." }
-                            },
-                            required: ["name", "description", "time", "type", "details"]
-                        }
-                    },
-                    systemInstruction: { parts: [{ text: systemPrompt }] },
-                };
-
-                const response = await fetch(`${GEMINI_API_URL}${API_KEY}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const result = await response.json();
-                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                let generatedData = JSON.parse(jsonText);
-
-                generatedContentCache = generatedData;
-
-                output.innerHTML = `
-                    <p class="text-yellow-400 font-bold">${generatedData.name} (${generatedData.type})</p>
-                    <p class="text-sm text-gray-400 mt-1">Horário: ${generatedData.time}</p>
-                    <p class="text-sm text-white italic mt-2">${generatedData.description}</p>
-                    <p class="mt-3 border-t border-gray-700 pt-2 text-xs">${generatedData.details}</p>
-                `;
-                saveBtn.classList.remove('hidden');
-
-            } catch (error) {
-                console.error("Erro na geração de conteúdo estruturado pela IA:", error);
-                output.innerHTML = `<p class="text-red-400">Alpha.AI: Erro na geração. Tente formatar sua requisição de forma mais clara.</p>`;
-                generatedContentCache = null;
-            }
-        }
-
-        /**
-         * Salva o conteúdo gerado pela IA no Firestore (Hábito/Rotina).
-         */
-        function saveGeneratedContent() {
-            if (!generatedContentCache) {
-                alert("Nenhum conteúdo válido da IA para salvar.");
-                return;
-            }
-
-            // O objeto gerado já é o formato do hábito
-            window.saveHabit(generatedContentCache);
-
-            const toast = document.getElementById('ai-toast');
-            toast.textContent = `Conteúdo ${generatedContentCache.name} salvo como prioridade!`;
-            toast.classList.remove('hidden', 'bg-red-900/50', 'text-red-300');
-            toast.classList.add('bg-green-900/50', 'text-green-300');
-            setTimeout(() => toast.classList.add('hidden'), 3000);
-            
-            hideAlphaAIModal();
-            generatedContentCache = null; // Limpa o cache
-        }
-
-
-        // --- FUNÇÕES DE CHECKOUT (STRIPE MOCK) ---
-
-        /**
-         * Funções mock do Stripe, conforme solicitado.
-         * NOTA: Estas funções requerem um endpoint de backend (/api/checkout) real para funcionar,
-         * mas estão estruturadas exatamente como solicitado.
-         */
-        async function subscribe(priceId) {
-            const res = await fetch("/api/checkout", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ priceId })
-            });
-
-            const data = await res.json();
-            if (data.url) {
-                window.location.href = data.url;
-            } else {
-                console.error("Erro no checkout:", data);
-                const toast = document.getElementById('ai-toast');
-                toast.textContent = `Erro ao iniciar checkout do Stripe.`;
-                toast.classList.remove('hidden', 'bg-green-900/50', 'text-green-300');
-                toast.classList.add('bg-red-900/50', 'text-red-300');
-                setTimeout(() => toast.classList.add('hidden'), 5000);
-            }
-        }
-
-        function subscribePro() {
-            // price_1SYaniARia0ROQXBL4xAFQBo
-            subscribe("price_1SYaniARia0ROQXBL4xAFQBo");
-        }
-
-        function subscribeVIP() {
-            // price_1SYaspARia0ROQXBunnpCkml
-            subscribe("price_1SYaspARia0ROQXBunnpCkml");
-        }
-
-        // --- INICIALIZAÇÃO GERAL ---
-
-        window.onload = () => {
-             // 1. Inicializa o Firebase e autentica
-             if (typeof window.firebaseInit === 'function') {
-                window.firebaseInit();
-             } else {
-                console.warn("Firebase Init não encontrado. Usando dados mock.");
-                const initialButton = document.querySelector('.nav-item');
-                if(initialButton) {
-                    switchTab('hoje', initialButton);
-                }
-                renderProfile();
-             }
-
-             // 2. Inicia as animações de UI
-             startTestimonialCarousel();
-             startUrgencyCounter();
-        };
-
-    </script>
+        requestAnimationFrame(animate);
+      });
+    });
+  </script>
 </body>
 </html>
